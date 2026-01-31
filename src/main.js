@@ -509,7 +509,7 @@ export async function initApp(appConfig, session) {
             avatarColor: p.avatarColor
         }));
 
-        render(pos, getFacing(), otherPlayers, state.me, clickMarker);
+        render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime);
 
         // Render minimap
         const minimapCanvas = document.getElementById('minimap-canvas');

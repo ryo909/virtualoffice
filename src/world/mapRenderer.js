@@ -2,6 +2,8 @@
 
 import { getWorldModel, getDesks, getSpots } from './mapLoader.js';
 import { AVATAR_RADIUS } from './collision.js';
+import * as Art from './mapArtLayers.js';
+import { colors, shadows, decorPlacements } from './mapStyles.js';
 
 let canvas = null;
 let ctx = null;
@@ -195,60 +197,300 @@ function getCssVar(name) {
 }
 
 /**
- * Render the entire map
+ * Render the entire map with layered art style
  */
-export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null) {
+export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null, clickMarkerTime = 0) {
     if (!ctx) return;
 
     const world = getWorldModel();
     if (!world) return;
 
-    // Clear canvas
-    ctx.fillStyle = getCssVar('--color-mapFloor') || '#f1f5f9';
+    // === Layer 0: Clear ===
+    ctx.fillStyle = '#f5f0e8';
     ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
 
     ctx.save();
 
     // Apply zoom and camera transform
-    // Move to screen center, scale, then translate by camera offset
     const cx = canvasSize.w / 2;
     const cy = canvasSize.h / 2;
     ctx.translate(cx, cy);
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // Draw zones
-    drawZones(world.zones);
+    // === Layer 1: Global Floor ===
+    Art.drawGlobalFloor(ctx, world.size.w, world.size.h);
 
-    // Draw rooms (expansion)
-    drawRooms(world.rooms);
-
-    // Draw obstacles/walls
-    drawObstacles(world.obstacles);
-
-    // Draw spots (zoom rooms)
-    drawSpots();
-
-    // Draw desks
-    drawDesks();
-
-    // Draw decor labels
-    drawDecor(world.decor);
-
-    // Draw click marker (destination)
-    if (clickMarker) {
-        drawClickMarker(clickMarker.x, clickMarker.y);
-    }
-
-    // Draw other players
-    otherPlayers.forEach(player => {
-        drawAvatar(player.pos.x, player.pos.y, player.displayName, player.status, player.avatarColor, false);
+    // === Layer 2: Zone Floors ===
+    world.zones.forEach(zone => {
+        Art.drawZoneFloor(ctx, zone, camera.zoom);
     });
 
-    // Draw player
-    drawAvatar(playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', me.avatarColor, true);
+    // === Layer 3: Zone Borders (with shadow) ===
+    world.zones.forEach(zone => {
+        Art.drawZoneBorder(ctx, zone);
+    });
+
+    // === Layer 4: Rooms/Expansion borders ===
+    drawRoomsStyled(world.rooms);
+
+    // === Layer 5: Obstacles/Walls ===
+    drawObstaclesStyled(world.obstacles);
+
+    // === Layer 6: Decor (plants, shelves, rugs) ===
+    drawZoneDecor(world.zones);
+
+    // === Layer 7: Spots (meeting rooms) ===
+    drawSpotsStyled();
+
+    // === Layer 8: Desks ===
+    drawDesksStyled();
+
+    // === Layer 9: Zone Labels ===
+    world.zones.forEach(zone => {
+        const b = zone.bounds;
+        Art.drawZoneLabel(ctx, zone.label, b.x + 60, b.y + 24);
+    });
+
+    // === Layer 10: Click marker ===
+    if (clickMarker) {
+        const age = Date.now() - clickMarkerTime;
+        Art.drawClickMarker(ctx, clickMarker.x, clickMarker.y, age);
+    }
+
+    // === Layer 11: Other players ===
+    otherPlayers.forEach(player => {
+        drawAvatarStyled(player.pos.x, player.pos.y, player.displayName, player.status, player.avatarColor, false);
+    });
+
+    // === Layer 12: Current player ===
+    drawAvatarStyled(playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', me.avatarColor, true);
 
     ctx.restore();
+}
+
+/**
+ * Draw rooms with styled borders
+ */
+function drawRoomsStyled(rooms) {
+    rooms.forEach(room => {
+        const b = room.bounds;
+
+        ctx.save();
+
+        // Shadow
+        ctx.shadowColor = 'rgba(0,0,0,0.08)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+
+        // Fill
+        ctx.fillStyle = 'rgba(248, 250, 252, 0.6)';
+        roundRect(ctx, b.x, b.y, b.w, b.h, 8);
+        ctx.fill();
+
+        ctx.shadowColor = 'transparent';
+
+        // Border
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label
+        Art.drawZoneLabel(ctx, room.label, b.x + b.w / 2, b.y + 20);
+
+        ctx.restore();
+    });
+}
+
+/**
+ * Draw obstacles with improved style
+ */
+function drawObstaclesStyled(obstacles) {
+    obstacles.forEach(obs => {
+        ctx.save();
+
+        // Shadow
+        ctx.shadowColor = 'rgba(0,0,0,0.15)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 2;
+
+        // Main wall
+        const grad = ctx.createLinearGradient(obs.x, obs.y, obs.x, obs.y + obs.h);
+        grad.addColorStop(0, '#9ca3af');
+        grad.addColorStop(1, '#6b7280');
+        ctx.fillStyle = grad;
+
+        roundRect(ctx, obs.x, obs.y, obs.w, obs.h, 4);
+        ctx.fill();
+
+        ctx.restore();
+    });
+}
+
+/**
+ * Draw decor items based on zone
+ */
+function drawZoneDecor(zones) {
+    zones.forEach(zone => {
+        const placements = decorPlacements[zone.id];
+        if (!placements) return;
+
+        const b = zone.bounds;
+
+        placements.forEach((item, i) => {
+            const x = b.x + b.w * item.x;
+            const y = b.y + b.h * item.y;
+
+            switch (item.type) {
+                case 'plant':
+                    Art.drawPlant(ctx, x, y, 0.8);
+                    break;
+                case 'shelf':
+                    Art.drawShelf(ctx, x, y);
+                    break;
+                case 'rug':
+                    Art.drawRug(ctx, x, y, b.w * item.w, b.h * item.h, i);
+                    break;
+            }
+        });
+    });
+}
+
+/**
+ * Draw spots with meeting table style
+ */
+function drawSpotsStyled() {
+    const spots = getSpots();
+
+    spots.forEach(spot => {
+        const b = spot.bounds;
+
+        ctx.save();
+
+        // Soft fill
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+        roundRect(ctx, b.x, b.y, b.w, b.h, 8);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw meeting table if zoom room
+        if (spot.kind === 'zoom_room' || spot.kind === 'zoom_table') {
+            Art.drawMeetingTable(ctx, b, spot.kind === 'zoom_room' ? 6 : 4);
+        }
+
+        // Label
+        Art.drawZoneLabel(ctx, spot.label, b.x + b.w / 2, b.y + 16);
+
+        ctx.restore();
+    });
+}
+
+/**
+ * Draw desks with furniture style
+ */
+function drawDesksStyled() {
+    const desks = getDesks();
+
+    desks.forEach((desk, i) => {
+        Art.drawDesk(ctx, desk, i);
+    });
+}
+
+/**
+ * Draw avatar with improved style
+ */
+function drawAvatarStyled(x, y, name, status, avatarColor, isCurrentPlayer) {
+    const radius = AVATAR_RADIUS;
+
+    ctx.save();
+
+    // Shadow
+    ctx.shadowColor = shadows.avatar.color;
+    ctx.shadowBlur = shadows.avatar.blur;
+    ctx.shadowOffsetY = shadows.avatar.offset + 2;
+
+    // Body
+    const color = avatarColor || (isCurrentPlayer ? colors.blue : colors.green);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(x - 3, y - 3, radius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Border for current player
+    if (isCurrentPlayer) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 1, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    // Status indicator
+    const statusColors = {
+        online: '#22c55e',
+        away: '#f59e0b',
+        busy: '#ef4444',
+        offline: '#9ca3af'
+    };
+    ctx.fillStyle = statusColors[status] || statusColors.online;
+    ctx.beginPath();
+    ctx.arc(x + radius - 2, y + radius - 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Name tag
+    ctx.font = '500 11px Inter, system-ui, sans-serif';
+    const metrics = ctx.measureText(name);
+    const tagWidth = metrics.width + 10;
+    const tagHeight = 16;
+    const tagX = x - tagWidth / 2;
+    const tagY = y - radius - tagHeight - 4;
+
+    // Tag background
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    roundRect(ctx, tagX, tagY, tagWidth, tagHeight, 4);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Name text
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, x, tagY + tagHeight / 2);
+
+    ctx.restore();
+}
+
+// Helper: rounded rectangle
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
 }
 
 /**
