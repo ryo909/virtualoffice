@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +11,10 @@
   <link rel="stylesheet" href="styles/theme.css">
   <link rel="stylesheet" href="styles/base.css">
   <link rel="stylesheet" href="styles/layout.css">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 </head>
+
 <body data-theme="theme:day">
   <div id="app">
     <!-- Loading Screen -->
@@ -28,30 +32,31 @@
       <nav class="nav">
         <button class="nav-btn" data-drawer="chat" title="Chat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span>Chat</span>
         </button>
         <button class="nav-btn" data-drawer="people" title="People">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
           <span>People</span>
         </button>
         <button class="nav-btn" data-drawer="search" title="Search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
           <span>Search</span>
         </button>
         <button class="nav-btn" data-drawer="settings" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
           </svg>
           <span>Settings</span>
         </button>
@@ -90,11 +95,11 @@
         <h2 class="drawer-title" id="drawer-title">Drawer</h2>
         <button class="drawer-close" id="drawer-close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6 6 18M6 6l12 12"/>
+            <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
       </div>
-      
+
       <!-- Chat Drawer Content -->
       <div id="drawer-chat" class="hidden">
         <div class="chat-tabs">
@@ -117,9 +122,10 @@
       <!-- Search Drawer Content -->
       <div id="drawer-search" class="drawer-content hidden">
         <div class="search-input-container">
-          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
           <input type="text" class="search-input" id="search-input" placeholder="Search people...">
         </div>
@@ -172,7 +178,8 @@
         <div class="settings-section">
           <div class="settings-label">Debug</div>
           <button class="btn btn-secondary" id="settings-logout">Logout</button>
-          <button class="btn btn-secondary" id="settings-clear-pw" style="margin-left: 8px;">Clear Saved Password</button>
+          <button class="btn btn-secondary" id="settings-clear-pw" style="margin-left: 8px;">Clear Saved
+            Password</button>
         </div>
       </div>
     </aside>
@@ -244,4 +251,5 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" src="src/boot.js"></script>
 </body>
+
 </html>

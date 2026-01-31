@@ -5,35 +5,74 @@ import { AVATAR_RADIUS } from './collision.js';
 
 let canvas = null;
 let ctx = null;
+let container = null;
 let camera = { x: 0, y: 0, zoom: 1 };
 let canvasSize = { w: 0, h: 0 };
+let resizeObserver = null;
 
 // Lerp factor for camera smoothing
 const CAMERA_LERP = 0.12;
 
 /**
+ * Helper: wait for next animation frame
+ */
+function raf() {
+    return new Promise(r => requestAnimationFrame(r));
+}
+
+/**
  * Initialize renderer
  */
-export function initRenderer(canvasElement) {
+export async function initRenderer(canvasElement) {
     canvas = canvasElement;
     ctx = canvas.getContext('2d');
+    container = document.getElementById('canvas-container');
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    // Initial resize (twice for layout settle)
+    resizeCanvasToContainer();
+    await raf();
+    resizeCanvasToContainer();
+
+    // Window resize handler
+    window.addEventListener('resize', resizeCanvasToContainer);
+
+    // ResizeObserver for container (handles DevTools, drawer, etc.)
+    resizeObserver = new ResizeObserver(() => {
+        resizeCanvasToContainer();
+    });
+    resizeObserver.observe(container);
 
     return { canvas, ctx };
 }
 
 /**
- * Resize canvas to fit container
+ * Resize canvas to fit container with DPR support
  */
-function resizeCanvas() {
-    const container = canvas.parentElement;
-    const rect = container.getBoundingClientRect();
+function resizeCanvasToContainer() {
+    if (!canvas || !container) return;
 
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    canvasSize = { w: rect.width, h: rect.height };
+    const rect = container.getBoundingClientRect();
+    const w = Math.floor(rect.width);
+    const h = Math.floor(rect.height);
+
+    // Guard against 0 dimensions
+    if (w <= 0 || h <= 0) return;
+
+    const dpr = window.devicePixelRatio || 1;
+
+    // Set canvas internal size (for sharp rendering)
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+
+    // Set canvas CSS size
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+
+    // Scale context for DPR
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Store CSS pixel size for calculations
+    canvasSize = { w, h };
 }
 
 /**

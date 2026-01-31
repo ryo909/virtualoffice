@@ -96,7 +96,7 @@ export async function initApp(appConfig, session) {
 
     // Initialize renderer
     const canvas = document.getElementById('map-canvas');
-    initRenderer(canvas);
+    await initRenderer(canvas);
 
     // Set spawn position
     const spawn = getSpawnPoint('lobby');
