@@ -335,8 +335,20 @@ export async function initApp(appConfig, session) {
     // Subscribe to chat
     subscribeChat({ all: true, room: null, dmList: [] });
 
-    // Canvas click handler
-    canvas.addEventListener('click', (e) => {
+    // Helper: Check if click is on UI element
+    function isUiClick(target) {
+        return target.closest('#menubar, #drawer, #modal-overlay, #context-panel, #minimap, button, input, textarea, a, .toast');
+    }
+
+    // Canvas click handler (pointerdown for better touch support)
+    const canvasContainer = document.getElementById('canvas-container');
+    canvasContainer.addEventListener('pointerdown', (e) => {
+        // Left click only
+        if (e.button !== 0) return;
+
+        // Skip if clicking on UI elements
+        if (isUiClick(e.target)) return;
+
         lastActivityTime = Date.now();
 
         const rect = canvas.getBoundingClientRect();
@@ -345,7 +357,7 @@ export async function initApp(appConfig, session) {
 
         const worldPos = screenToWorld(screenX, screenY);
 
-        // Check if clicked on a clickable element
+        // Check if clicked on a clickable element (spot, desk, user)
         const clickable = getClickableAt(worldPos.x, worldPos.y);
 
         if (clickable.kind) {
@@ -355,6 +367,9 @@ export async function initApp(appConfig, session) {
             state.ui.selected = null;
             hideContextPanel();
             setMoveTarget(worldPos.x, worldPos.y);
+
+            // Show click marker
+            showClickMarker(worldPos.x, worldPos.y);
         }
     });
 
@@ -385,6 +400,22 @@ export async function initApp(appConfig, session) {
         if (e.key.toLowerCase() === 'd') keys.d = false;
     });
 
+    // Presence throttling state
+    let lastPresenceSent = 0;
+    let lastSentPos = { x: 0, y: 0 };
+    const PRESENCE_INTERVAL_MS = 200;
+    const PRESENCE_DISTANCE_THRESHOLD = 6;
+
+    // Click marker state
+    let clickMarker = null;
+    let clickMarkerTime = 0;
+    const CLICK_MARKER_DURATION = 500;
+
+    function showClickMarker(x, y) {
+        clickMarker = { x, y };
+        clickMarkerTime = Date.now();
+    }
+
     // Start game loop
     function gameLoop(timestamp) {
         const deltaMs = timestamp - lastFrameTime;
@@ -393,18 +424,47 @@ export async function initApp(appConfig, session) {
         // Update movement
         updateMovement(deltaMs);
 
-        // Update camera
+        // Get current position
         const pos = getCurrentPos();
-        updateCamera(pos.x, pos.y);
+
+        // Update camera with deltaMs for FPS-independent smoothing
+        updateCamera(pos.x, pos.y, deltaMs);
+
+        // Throttled presence update
+        const now = Date.now();
+        const distMoved = Math.sqrt(
+            Math.pow(pos.x - lastSentPos.x, 2) +
+            Math.pow(pos.y - lastSentPos.y, 2)
+        );
+
+        if (distMoved > PRESENCE_DISTANCE_THRESHOLD || now - lastPresenceSent > PRESENCE_INTERVAL_MS) {
+            if (distMoved > 0.1) { // Only send if actually moved
+                updatePresence({
+                    actorId: state.me.actorId,
+                    displayName: state.me.displayName,
+                    status: state.me.status,
+                    pos: pos,
+                    facing: getFacing(),
+                    location: getLocationLabel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId)
+                });
+                lastSentPos = { ...pos };
+                lastPresenceSent = now;
+            }
+        }
 
         // Check away status
         if (config.presence?.awayAfterMs) {
-            const elapsed = Date.now() - lastActivityTime;
+            const elapsed = now - lastActivityTime;
             if (elapsed > config.presence.awayAfterMs && state.me.status === 'online') {
                 state.me.status = 'away';
                 updateStatus('away');
                 updatePresence({ status: 'away' });
             }
+        }
+
+        // Clear expired click marker
+        if (clickMarker && now - clickMarkerTime > CLICK_MARKER_DURATION) {
+            clickMarker = null;
         }
 
         // Render
@@ -415,7 +475,7 @@ export async function initApp(appConfig, session) {
             avatarColor: p.avatarColor
         }));
 
-        render(pos, getFacing(), otherPlayers, state.me);
+        render(pos, getFacing(), otherPlayers, state.me, clickMarker);
 
         // Render minimap
         const minimapCanvas = document.getElementById('minimap-canvas');

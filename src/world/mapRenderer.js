@@ -76,9 +76,9 @@ function resizeCanvasToContainer() {
 }
 
 /**
- * Update camera to follow target
+ * Update camera to follow target (FPS-independent)
  */
-export function updateCamera(targetX, targetY) {
+export function updateCamera(targetX, targetY, deltaMs = 16.67) {
     const world = getWorldModel();
     if (!world) return;
 
@@ -87,15 +87,16 @@ export function updateCamera(targetX, targetY) {
     const targetCamY = targetY - canvasSize.h / 2;
 
     // Clamp to map bounds
-    const maxX = world.size.w - canvasSize.w;
-    const maxY = world.size.h - canvasSize.h;
+    const maxX = Math.max(0, world.size.w - canvasSize.w);
+    const maxY = Math.max(0, world.size.h - canvasSize.h);
 
     const clampedX = Math.max(0, Math.min(targetCamX, maxX));
     const clampedY = Math.max(0, Math.min(targetCamY, maxY));
 
-    // Smooth camera movement
-    camera.x += (clampedX - camera.x) * CAMERA_LERP;
-    camera.y += (clampedY - camera.y) * CAMERA_LERP;
+    // FPS-independent smooth camera movement
+    const alpha = 1 - Math.pow(1 - CAMERA_LERP, deltaMs / 16.67);
+    camera.x += (clampedX - camera.x) * alpha;
+    camera.y += (clampedY - camera.y) * alpha;
 }
 
 /**
@@ -128,7 +129,7 @@ function getCssVar(name) {
 /**
  * Render the entire map
  */
-export function render(playerPos, playerFacing, otherPlayers = [], me = {}) {
+export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null) {
     if (!ctx) return;
 
     const world = getWorldModel();
@@ -159,6 +160,11 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}) {
     // Draw decor labels
     drawDecor(world.decor);
 
+    // Draw click marker (destination)
+    if (clickMarker) {
+        drawClickMarker(clickMarker.x, clickMarker.y);
+    }
+
     // Draw other players
     otherPlayers.forEach(player => {
         drawAvatar(player.pos.x, player.pos.y, player.displayName, player.status, player.avatarColor, false);
@@ -168,6 +174,26 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}) {
     drawAvatar(playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', me.avatarColor, true);
 
     ctx.restore();
+}
+
+/**
+ * Draw click marker at destination
+ */
+function drawClickMarker(x, y) {
+    const markerColor = getCssVar('--color-primary') || '#3b82f6';
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.strokeStyle = markerColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Inner dot
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = markerColor;
+    ctx.fill();
 }
 
 function drawZones(zones) {
