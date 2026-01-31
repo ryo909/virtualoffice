@@ -1,7 +1,7 @@
 // main.js - Main application state and logic
 
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
-import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera } from './world/mapRenderer.js';
+import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera, applyZoom } from './world/mapRenderer.js';
 import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove } from './world/movement.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
@@ -376,6 +376,23 @@ export async function initApp(appConfig, session) {
             showClickMarker(worldPos.x, worldPos.y);
         }
     });
+
+    // Mouse wheel zoom handler
+    canvasContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        // Skip if on UI elements
+        if (isUiClick(e.target)) return;
+
+        lastActivityTime = Date.now();
+
+        const rect = canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        // Apply zoom with cursor as pivot
+        applyZoom(e.deltaY, screenX, screenY);
+    }, { passive: false });
 
     // Keyboard handler
     const keys = { up: false, down: false, left: false, right: false, w: false, a: false, s: false, d: false };

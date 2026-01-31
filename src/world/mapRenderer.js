@@ -10,6 +10,10 @@ let camera = { x: 0, y: 0, zoom: 1 };
 let canvasSize = { w: 0, h: 0 };
 let resizeObserver = null;
 
+// Zoom limits
+const MIN_ZOOM = 0.65;
+const MAX_ZOOM = 1.6;
+
 // Lerp factor for camera smoothing
 const CAMERA_LERP = 0.12;
 
@@ -82,41 +86,105 @@ export function updateCamera(targetX, targetY, deltaMs = 16.67) {
     const world = getWorldModel();
     if (!world) return;
 
-    // Target camera position (centered on player)
-    const targetCamX = targetX - canvasSize.w / 2;
-    const targetCamY = targetY - canvasSize.h / 2;
+    // Viewport size in world coordinates (affected by zoom)
+    const viewW = canvasSize.w / camera.zoom;
+    const viewH = canvasSize.h / camera.zoom;
 
-    // Clamp to map bounds
-    const maxX = Math.max(0, world.size.w - canvasSize.w);
-    const maxY = Math.max(0, world.size.h - canvasSize.h);
+    // Target camera position (camera.x/y = world center)
+    const targetCamX = targetX;
+    const targetCamY = targetY;
 
-    const clampedX = Math.max(0, Math.min(targetCamX, maxX));
-    const clampedY = Math.max(0, Math.min(targetCamY, maxY));
+    // Clamp camera center so we don't show outside map
+    const minX = viewW / 2;
+    const maxX = world.size.w - viewW / 2;
+    const minY = viewH / 2;
+    const maxY = world.size.h - viewH / 2;
+
+    const clampedX = Math.max(minX, Math.min(targetCamX, maxX));
+    const clampedY = Math.max(minY, Math.min(targetCamY, maxY));
 
     // FPS-independent smooth camera movement
     const alpha = 1 - Math.pow(1 - CAMERA_LERP, deltaMs / 16.67);
     camera.x += (clampedX - camera.x) * alpha;
     camera.y += (clampedY - camera.y) * alpha;
+
+    // Also clamp final position
+    clampCameraToMap();
 }
 
 /**
- * Convert screen coords to world coords
+ * Clamp camera to map bounds (accounting for zoom)
+ */
+function clampCameraToMap() {
+    const world = getWorldModel();
+    if (!world) return;
+
+    const viewW = canvasSize.w / camera.zoom;
+    const viewH = canvasSize.h / camera.zoom;
+
+    const minX = viewW / 2;
+    const maxX = Math.max(minX, world.size.w - viewW / 2);
+    const minY = viewH / 2;
+    const maxY = Math.max(minY, world.size.h - viewH / 2);
+
+    camera.x = Math.max(minX, Math.min(camera.x, maxX));
+    camera.y = Math.max(minY, Math.min(camera.y, maxY));
+}
+
+/**
+ * Apply zoom with cursor as pivot point
+ */
+export function applyZoom(delta, mouseScreenX, mouseScreenY) {
+    // Get world position under cursor before zoom
+    const beforeWorld = screenToWorld(mouseScreenX, mouseScreenY);
+
+    // Calculate new zoom (exponential for smooth feel)
+    const zoomSpeed = 0.0015;
+    const factor = Math.exp(-delta * zoomSpeed);
+    const newZoom = Math.max(MIN_ZOOM, Math.min(camera.zoom * factor, MAX_ZOOM));
+
+    // Skip if change is negligible
+    if (Math.abs(newZoom - camera.zoom) < 0.0001) return;
+
+    camera.zoom = newZoom;
+
+    // Get world position under cursor after zoom
+    const afterWorld = screenToWorld(mouseScreenX, mouseScreenY);
+
+    // Adjust camera so cursor still points to same world position
+    camera.x += (beforeWorld.x - afterWorld.x);
+    camera.y += (beforeWorld.y - afterWorld.y);
+
+    // Clamp to map
+    clampCameraToMap();
+}
+
+/**
+ * Convert screen coords to world coords (zoom-aware)
  */
 export function screenToWorld(screenX, screenY) {
-    return {
-        x: screenX + camera.x,
-        y: screenY + camera.y
-    };
+    // Screen center in CSS pixels
+    const cx = canvasSize.w / 2;
+    const cy = canvasSize.h / 2;
+
+    // Convert screen offset from center to world offset
+    const wx = (screenX - cx) / camera.zoom + camera.x;
+    const wy = (screenY - cy) / camera.zoom + camera.y;
+
+    return { x: wx, y: wy };
 }
 
 /**
- * Convert world coords to screen coords
+ * Convert world coords to screen coords (zoom-aware)
  */
 export function worldToScreen(worldX, worldY) {
-    return {
-        x: worldX - camera.x,
-        y: worldY - camera.y
-    };
+    const cx = canvasSize.w / 2;
+    const cy = canvasSize.h / 2;
+
+    const sx = (worldX - camera.x) * camera.zoom + cx;
+    const sy = (worldY - camera.y) * camera.zoom + cy;
+
+    return { x: sx, y: sy };
 }
 
 /**
@@ -140,6 +208,13 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
 
     ctx.save();
+
+    // Apply zoom and camera transform
+    // Move to screen center, scale, then translate by camera offset
+    const cx = canvasSize.w / 2;
+    const cy = canvasSize.h / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
     // Draw zones

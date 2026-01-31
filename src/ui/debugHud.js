@@ -42,10 +42,10 @@ export function updateDebugHud(newState) {
         `pos: (${state.pos.x.toFixed(1)}, ${state.pos.y.toFixed(1)})`,
         `target: ${state.target ? `(${state.target.x.toFixed(1)}, ${state.target.y.toFixed(1)})` : 'null'}`,
         `camera: (${state.camera.x.toFixed(1)}, ${state.camera.y.toFixed(1)})`,
+        `zoom: ${(state.camera.zoom || 1).toFixed(2)}`,
         `dt: ${state.dt.toFixed(1)}ms`,
         `isMoving: ${state.isMoving}`,
         `lastTick: ${(Date.now() - state.lastTickMoveAt)}ms ago`,
-        `lastRender: ${(Date.now() - state.lastRenderAt)}ms ago`,
         state.lastClickWorld ? `lastClick: (${state.lastClickWorld.x.toFixed(1)}, ${state.lastClickWorld.y.toFixed(1)})` : 'lastClick: null'
     ];
 
