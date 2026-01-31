@@ -6,6 +6,7 @@ import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, 
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
+import { updateAnimation } from './avatar/pixelSpriteRenderer.js';
 
 import { getConfig, getSupabase } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
@@ -460,6 +461,13 @@ export async function initApp(appConfig, session) {
 
         // Get current position
         const pos = getCurrentPos();
+        const target = getTarget();
+        const isMoving = getIsMoving();
+
+        // Update avatar animation
+        const dx = target ? target.x - pos.x : 0;
+        const dy = target ? target.y - pos.y : 0;
+        updateAnimation(state.me.actorId || 'me', isMoving, dx, dy, deltaMs);
 
         // Update camera with deltaMs for FPS-independent smoothing
         updateCamera(pos.x, pos.y, deltaMs);
@@ -506,10 +514,11 @@ export async function initApp(appConfig, session) {
             pos: p.pos || { x: 0, y: 0 },
             displayName: p.displayName || 'Unknown',
             status: p.status || 'online',
-            avatarColor: p.avatarColor
+            avatarColor: p.avatarColor,
+            actorId: p.actorId
         }));
 
-        render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime);
+        render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime, deltaMs);
 
         // Render minimap
         const minimapCanvas = document.getElementById('minimap-canvas');

@@ -1,9 +1,15 @@
-// mapRenderer.js - Canvas rendering for the map
+// mapRenderer.js - Canvas rendering for the map (Pixel Illustration Style)
 
 import { getWorldModel, getDesks, getSpots } from './mapLoader.js';
 import { AVATAR_RADIUS } from './collision.js';
-import * as Art from './mapArtLayers.js';
-import { colors, shadows, decorPlacements } from './mapStyles.js';
+
+// New render modules
+import { getPattern, zonePatterns } from '../render/patterns.js';
+import { drawZoneBuilding, drawExpansionRoom } from '../render/drawZonesBuilding.js';
+import { drawDeskDetailed, drawMeetingTableDetailed, drawCommonTable } from '../render/drawFurniture.js';
+import { generateAllDecor } from '../render/decorGenerator.js';
+import { drawDecorItems } from '../render/drawDecor.js';
+import { renderPixelAvatar, renderNameTag, updateAnimation, getAnimationState } from '../avatar/pixelSpriteRenderer.js';
 
 let canvas = null;
 let ctx = null;
@@ -197,16 +203,17 @@ function getCssVar(name) {
 }
 
 /**
- * Render the entire map with layered art style
+ * Render the entire map with pixel illustration style
  */
-export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null, clickMarkerTime = 0) {
+export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null, clickMarkerTime = 0, deltaMs = 16) {
     if (!ctx) return;
 
     const world = getWorldModel();
     if (!world) return;
 
-    // === Layer 0: Clear ===
-    ctx.fillStyle = '#f5f0e8';
+    // === Layer 0: Clear with global floor color ===
+    const globalPattern = getPattern(ctx, 'walkway');
+    ctx.fillStyle = globalPattern || '#e8e4dc';
     ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
 
     ctx.save();
@@ -218,53 +225,189 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // === Layer 1: Global Floor ===
-    Art.drawGlobalFloor(ctx, world.size.w, world.size.h);
+    // === Layer 1: Global Floor (walkway pattern) ===
+    ctx.fillStyle = globalPattern || '#e8e4dc';
+    ctx.fillRect(0, 0, world.size.w, world.size.h);
 
-    // === Layer 2: Zone Floors ===
+    // === Layer 2: Zones as Buildings ===
     world.zones.forEach(zone => {
-        Art.drawZoneFloor(ctx, zone, camera.zoom);
+        const isMeeting = zone.id.includes('meeting');
+        drawZoneBuilding(ctx, zone, isMeeting);
     });
 
-    // === Layer 3: Zone Borders (with shadow) ===
-    world.zones.forEach(zone => {
-        Art.drawZoneBorder(ctx, zone);
-    });
-
-    // === Layer 4: Rooms/Expansion borders ===
-    drawRoomsStyled(world.rooms);
-
-    // === Layer 5: Obstacles/Walls ===
-    drawObstaclesStyled(world.obstacles);
-
-    // === Layer 6: Decor (plants, shelves, rugs) ===
-    drawZoneDecor(world.zones);
-
-    // === Layer 7: Spots (meeting rooms) ===
-    drawSpotsStyled();
-
-    // === Layer 8: Desks ===
-    drawDesksStyled();
-
-    // === Layer 9: Zone Labels ===
-    world.zones.forEach(zone => {
-        const b = zone.bounds;
-        Art.drawZoneLabel(ctx, zone.label, b.x + 60, b.y + 24);
-    });
-
-    // === Layer 10: Click marker ===
-    if (clickMarker) {
-        const age = Date.now() - clickMarkerTime;
-        Art.drawClickMarker(ctx, clickMarker.x, clickMarker.y, age);
+    // === Layer 3: Expansion Rooms ===
+    if (world.rooms) {
+        world.rooms.forEach(room => {
+            drawExpansionRoom(ctx, room);
+        });
     }
 
-    // === Layer 11: Other players ===
+    // === Layer 4: Obstacles/Walls ===
+    drawObstaclesPixel(world.obstacles);
+
+    // === Layer 5: Decor (auto-generated) ===
+    const decorItems = generateAllDecor(world.zones);
+    drawDecorItems(ctx, decorItems);
+
+    // === Layer 6: Spots (meeting rooms with furniture) ===
+    drawSpotsPixel();
+
+    // === Layer 7: Desks ===
+    drawDesksPixel();
+
+    // === Layer 8: Click marker ===
+    if (clickMarker) {
+        drawClickMarkerPixel(clickMarker.x, clickMarker.y, clickMarkerTime);
+    }
+
+    // === Layer 9: Other players (pixel avatars) ===
     otherPlayers.forEach(player => {
-        drawAvatarStyled(player.pos.x, player.pos.y, player.displayName, player.status, player.avatarColor, false);
+        const state = getAnimationState(player.actorId || player.displayName);
+        renderPixelAvatar(ctx, player.pos.x, player.pos.y, player.displayName, state, camera.zoom, false);
+        renderNameTag(ctx, player.pos.x, player.pos.y, player.displayName, player.status, camera.zoom);
     });
 
-    // === Layer 12: Current player ===
-    drawAvatarStyled(playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', me.avatarColor, true);
+    // === Layer 10: Current player (pixel avatar) ===
+    const playerState = getAnimationState(me.actorId || 'me');
+    renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
+    renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
+
+    ctx.restore();
+}
+
+/**
+ * Draw obstacles with pixel style
+ */
+function drawObstaclesPixel(obstacles) {
+    if (!obstacles) return;
+
+    obstacles.forEach(obs => {
+        ctx.save();
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        roundRect(ctx, obs.x + 2, obs.y + 2, obs.w, obs.h, 4);
+        ctx.fill();
+
+        // Main wall with gradient
+        const grad = ctx.createLinearGradient(obs.x, obs.y, obs.x, obs.y + obs.h);
+        grad.addColorStop(0, '#9ca3af');
+        grad.addColorStop(1, '#6b7280');
+        ctx.fillStyle = grad;
+
+        roundRect(ctx, obs.x, obs.y, obs.w, obs.h, 4);
+        ctx.fill();
+
+        // Highlight on top
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(obs.x + 2, obs.y + 1, obs.w - 4, 2);
+
+        ctx.restore();
+    });
+}
+
+/**
+ * Draw spots with meeting furniture
+ */
+function drawSpotsPixel() {
+    const spots = getSpots();
+
+    spots.forEach(spot => {
+        const b = spot.bounds;
+
+        ctx.save();
+
+        // Soft highlight
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.06)';
+        roundRect(ctx, b.x, b.y, b.w, b.h, 8);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw furniture based on type
+        if (spot.kind === 'zoom_room') {
+            drawMeetingTableDetailed(ctx, b, 6, true);
+        } else if (spot.kind === 'zoom_table') {
+            drawCommonTable(ctx, b);
+        }
+
+        // Video icon (small)
+        drawVideoIcon(ctx, b.x + b.w - 24, b.y + 12);
+
+        ctx.restore();
+    });
+}
+
+/**
+ * Draw small video icon
+ */
+function drawVideoIcon(ctx, x, y) {
+    ctx.save();
+
+    ctx.fillStyle = '#10b981';
+    roundRect(ctx, x, y, 16, 12, 2);
+    ctx.fill();
+
+    // Camera lens
+    ctx.fillStyle = '#f0fdf4';
+    ctx.beginPath();
+    ctx.moveTo(x + 12, y + 3);
+    ctx.lineTo(x + 16, y + 1);
+    ctx.lineTo(x + 16, y + 11);
+    ctx.lineTo(x + 12, y + 9);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/**
+ * Draw desks with detailed furniture
+ */
+function drawDesksPixel() {
+    const desks = getDesks();
+
+    desks.forEach((desk, i) => {
+        const isOccupied = desk.assignedTo != null;
+        drawDeskDetailed(ctx, desk.pos.x, desk.pos.y, i, isOccupied);
+    });
+}
+
+/**
+ * Draw click marker with pixel style
+ */
+function drawClickMarkerPixel(x, y, startTime) {
+    const age = Date.now() - startTime;
+    const progress = Math.min(age / 500, 1);
+    const alpha = 1 - progress * 0.6;
+    const scale = 1 + progress * 0.4;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = alpha;
+
+    // Outer ring
+    ctx.strokeStyle = '#4285f4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner glow
+    ctx.fillStyle = 'rgba(66, 133, 244, 0.25)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Center dot
+    ctx.fillStyle = '#4285f4';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
 }
