@@ -4,12 +4,14 @@ import { canMoveTo, constrainPosition, AVATAR_RADIUS } from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
+const DEBUG_COLLISION = false; // Set to true to bypass collision for testing
 
 let targetPos = null;
 let currentPos = { x: 260, y: 260 };
 let facing = 'down';
 let isMoving = false;
 let onMoveCallback = null;
+let lastLogTime = 0;
 
 /**
  * Initialize movement system
@@ -19,21 +21,39 @@ export function initMovement(startPos, onMove) {
     targetPos = null;
     isMoving = false;
     onMoveCallback = onMove;
+    console.log('[MOVE] initMovement', startPos);
 }
 
 /**
  * Set movement target (click destination)
  */
 export function setMoveTarget(x, y) {
+    console.log('[MOVE] setMoveTarget called', { x, y });
+
     const world = getWorldModel();
-    if (!world) return;
+    if (!world) {
+        console.warn('[MOVE] No world model!');
+        return;
+    }
+
+    // For debugging: skip collision check if DEBUG_COLLISION is true
+    if (DEBUG_COLLISION) {
+        targetPos = { x, y };
+        isMoving = true;
+        console.log('[MOVE] target set (collision bypassed)', targetPos);
+        return;
+    }
 
     // Constrain to walkable area
     const constrained = constrainPosition(x, y);
+    console.log('[MOVE] constrained', constrained);
 
     if (canMoveTo(constrained.x, constrained.y)) {
         targetPos = constrained;
         isMoving = true;
+        console.log('[MOVE] target set', targetPos);
+    } else {
+        console.warn('[MOVE] canMoveTo returned false for', constrained);
     }
 }
 
@@ -43,6 +63,14 @@ export function setMoveTarget(x, y) {
  * @returns {{pos: {x, y}, facing: string, moving: boolean}}
  */
 export function updateMovement(deltaMs) {
+    const now = Date.now();
+
+    // Log every 500ms for debugging
+    if (now - lastLogTime > 500) {
+        console.log('[MOVE] tick', { pos: currentPos, target: targetPos, isMoving, deltaMs });
+        lastLogTime = now;
+    }
+
     if (!isMoving || !targetPos) {
         return { pos: currentPos, facing, moving: false };
     }
@@ -54,11 +82,12 @@ export function updateMovement(deltaMs) {
     const dy = targetPos.y - currentPos.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance <= moveDistance) {
-        // Arrived at destination
+    // Arrived at destination (distance < 4px)
+    if (distance <= 4) {
         currentPos = { ...targetPos };
         targetPos = null;
         isMoving = false;
+        console.log('[MOVE] arrived', currentPos);
 
         if (onMoveCallback) {
             onMoveCallback(currentPos, facing, false);
@@ -79,13 +108,19 @@ export function updateMovement(deltaMs) {
         facing = dy > 0 ? 'down' : 'up';
     }
 
-    // Check if new position is walkable
-    if (canMoveTo(newX, newY)) {
+    // For debugging: skip collision check
+    if (DEBUG_COLLISION) {
         currentPos = { x: newX, y: newY };
     } else {
-        // Stop if blocked
-        targetPos = null;
-        isMoving = false;
+        // Check if new position is walkable
+        if (canMoveTo(newX, newY)) {
+            currentPos = { x: newX, y: newY };
+        } else {
+            // Stop if blocked
+            console.warn('[MOVE] blocked at', { newX, newY });
+            targetPos = null;
+            isMoving = false;
+        }
     }
 
     if (onMoveCallback) {
@@ -174,4 +209,18 @@ export function getFacing() {
 
 export function getIsMoving() {
     return isMoving;
+}
+
+export function getTarget() {
+    return targetPos ? { ...targetPos } : null;
+}
+
+// Debug: Force move position directly
+export function forceMove(dx, dy) {
+    currentPos.x += dx;
+    currentPos.y += dy;
+    console.log('[MOVE] forceMove', currentPos);
+    if (onMoveCallback) {
+        onMoveCallback(currentPos, facing, false);
+    }
 }

@@ -1,10 +1,11 @@
 // main.js - Main application state and logic
 
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
-import { initRenderer, render, updateCamera, renderMinimap, screenToWorld } from './world/mapRenderer.js';
-import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo } from './world/movement.js';
+import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera } from './world/mapRenderer.js';
+import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove } from './world/movement.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
+import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
 
 import { getConfig, getSupabase } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
@@ -97,6 +98,9 @@ export async function initApp(appConfig, session) {
     // Initialize renderer
     const canvas = document.getElementById('map-canvas');
     await initRenderer(canvas);
+
+    // Initialize debug HUD (development only)
+    initDebugHud();
 
     // Set spawn position
     const spawn = getSpawnPoint('lobby');
@@ -387,6 +391,19 @@ export async function initApp(appConfig, session) {
         if (e.key.toLowerCase() === 'a') keys.a = true;
         if (e.key.toLowerCase() === 's') keys.s = true;
         if (e.key.toLowerCase() === 'd') keys.d = true;
+
+        // Debug keys
+        if (e.key.toLowerCase() === 'g') {
+            // G: Force set move target +200 right
+            const p = getCurrentPos();
+            console.log('[DEBUG] G pressed, setting target +200 right');
+            setMoveTarget(p.x + 200, p.y);
+        }
+        if (e.key.toLowerCase() === 'h') {
+            // H: Force move position +50 right
+            console.log('[DEBUG] H pressed, force moving +50 right');
+            forceMove(50, 0);
+        }
     });
 
     document.addEventListener('keyup', (e) => {
@@ -482,6 +499,19 @@ export async function initApp(appConfig, session) {
         if (minimapCanvas) {
             renderMinimap(minimapCanvas, pos, otherPlayers);
         }
+
+        // Update debug HUD
+        const cam = getCamera();
+        updateDebugHud({
+            pos: pos,
+            target: getTarget(),
+            camera: cam,
+            dt: deltaMs,
+            isMoving: getIsMoving(),
+            lastTickMoveAt: now,
+            lastRenderAt: now,
+            lastClickWorld: clickMarker
+        });
 
         animationFrameId = requestAnimationFrame(gameLoop);
     }
