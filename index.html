@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/theme.css">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/layout.css">
+</head>
+<body data-theme="theme:day">
+  <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading...</div>
+    </div>
+
+    <!-- Menubar -->
+    <header id="menubar" class="hidden">
+      <div class="logo">
+        <div class="logo-icon"></div>
+        <span>Virtual Office</span>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn" data-drawer="chat" title="Chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>Chat</span>
+        </button>
+        <button class="nav-btn" data-drawer="people" title="People">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>People</span>
+        </button>
+        <button class="nav-btn" data-drawer="search" title="Search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <span>Search</span>
+        </button>
+        <button class="nav-btn" data-drawer="settings" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+      <div class="status-indicator">
+        <span id="my-display-name"></span>
+        <div id="my-status-dot" class="status-dot"></div>
+      </div>
+    </header>
+
+    <!-- Main Area -->
+    <main id="main" class="hidden">
+      <!-- Map Canvas -->
+      <div id="canvas-container">
+        <canvas id="map-canvas"></canvas>
+      </div>
+
+      <!-- Context Panel -->
+      <div id="context-panel">
+        <span class="panel-title" id="context-title"></span>
+        <div class="panel-actions" id="context-actions"></div>
+      </div>
+
+      <!-- Minimap (optional) -->
+      <div id="minimap">
+        <canvas id="minimap-canvas"></canvas>
+      </div>
+    </main>
+
+    <!-- Drawer Overlay -->
+    <div id="drawer-overlay"></div>
+
+    <!-- Drawer -->
+    <aside id="drawer">
+      <div class="drawer-header">
+        <h2 class="drawer-title" id="drawer-title">Drawer</h2>
+        <button class="drawer-close" id="drawer-close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Chat Drawer Content -->
+      <div id="drawer-chat" class="hidden">
+        <div class="chat-tabs">
+          <button class="chat-tab active" data-chat-tab="all">All</button>
+          <button class="chat-tab" data-chat-tab="room">Room</button>
+          <button class="chat-tab" data-chat-tab="dm">DM</button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-container">
+          <input type="text" class="chat-input" id="chat-input" placeholder="Type a message...">
+          <button class="btn btn-primary" id="chat-send">Send</button>
+        </div>
+      </div>
+
+      <!-- People Drawer Content -->
+      <div id="drawer-people" class="drawer-content hidden">
+        <div class="people-list" id="people-list"></div>
+      </div>
+
+      <!-- Search Drawer Content -->
+      <div id="drawer-search" class="drawer-content hidden">
+        <div class="search-input-container">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" class="search-input" id="search-input" placeholder="Search people...">
+        </div>
+        <div class="people-list" id="search-results"></div>
+      </div>
+
+      <!-- Settings Drawer Content -->
+      <div id="drawer-settings" class="drawer-content hidden">
+        <div class="settings-section">
+          <div class="settings-label">Display Name</div>
+          <div class="form-group">
+            <input type="text" class="form-input" id="settings-name" placeholder="Your name">
+            <button class="btn btn-secondary" id="settings-name-save" style="margin-top: 8px;">Save</button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">Status</div>
+          <div class="theme-options">
+            <button class="theme-option" data-status="online">
+              <div class="theme-preview" style="background: #10b981;"></div>
+              <div class="theme-name">Online</div>
+            </button>
+            <button class="theme-option" data-status="away">
+              <div class="theme-preview" style="background: #f59e0b;"></div>
+              <div class="theme-name">Away</div>
+            </button>
+            <button class="theme-option" data-status="focus">
+              <div class="theme-preview" style="background: #ef4444;"></div>
+              <div class="theme-name">Focus</div>
+            </button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">Theme</div>
+          <div class="theme-options" id="theme-options">
+            <button class="theme-option active" data-theme="theme:day">
+              <div class="theme-preview" style="background: linear-gradient(135deg, #f8fafc, #e2e8f0);"></div>
+              <div class="theme-name">Day</div>
+            </button>
+            <button class="theme-option" data-theme="theme:night">
+              <div class="theme-preview" style="background: linear-gradient(135deg, #0f172a, #1e293b);"></div>
+              <div class="theme-name">Night</div>
+            </button>
+            <button class="theme-option" data-theme="theme:mono">
+              <div class="theme-preview" style="background: linear-gradient(135deg, #fafafa, #d4d4d4);"></div>
+              <div class="theme-name">Mono</div>
+            </button>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">Debug</div>
+          <button class="btn btn-secondary" id="settings-logout">Logout</button>
+          <button class="btn btn-secondary" id="settings-clear-pw" style="margin-left: 8px;">Clear Saved Password</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay">
+      <!-- Password Modal -->
+      <div class="modal" id="modal-password">
+        <div class="modal-header">
+          <h2 class="modal-title">社内ログイン</h2>
+          <p class="modal-subtitle">共通パスワードを入力してください</p>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="password-input">Password</label>
+            <input type="password" class="form-input" id="password-input" placeholder="Enter password">
+            <div class="form-error hidden" id="password-error"></div>
+          </div>
+          <label class="form-checkbox">
+            <input type="checkbox" id="password-save">
+            <span>この端末に保存する</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="password-submit">ログイン</button>
+        </div>
+      </div>
+
+      <!-- Nameplate Modal -->
+      <div class="modal hidden" id="modal-nameplate">
+        <div class="modal-header">
+          <h2 class="modal-title">名札の設定</h2>
+          <p class="modal-subtitle">表示名を入力してください</p>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="nameplate-input">Display Name</label>
+            <input type="text" class="form-input" id="nameplate-input" placeholder="Your display name" maxlength="20">
+            <div class="form-hint">最大20文字</div>
+            <div class="form-error hidden" id="nameplate-error"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="nameplate-submit">保存</button>
+        </div>
+      </div>
+
+      <!-- Incoming Call Modal -->
+      <div class="modal hidden" id="modal-incoming-call">
+        <div class="modal-header">
+          <h2 class="modal-title">着信</h2>
+          <p class="modal-subtitle" id="incoming-call-from"></p>
+        </div>
+        <div class="modal-body" style="text-align: center;">
+          <div style="font-size: 48px; margin: 20px 0;">📞</div>
+        </div>
+        <div class="modal-footer" style="justify-content: center;">
+          <button class="btn btn-danger" id="call-reject">拒否</button>
+          <button class="btn btn-primary" id="call-accept">応答</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="src/boot.js"></script>
+</body>
+</html>

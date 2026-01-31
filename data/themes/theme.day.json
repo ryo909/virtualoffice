@@ -1,0 +1,27 @@
+{
+    "id": "theme:day",
+    "name": "Day",
+    "colors": {
+        "bg": "#f8fafc",
+        "bgSecondary": "#e2e8f0",
+        "bgTertiary": "#cbd5e1",
+        "text": "#1e293b",
+        "textSecondary": "#475569",
+        "textMuted": "#94a3b8",
+        "primary": "#3b82f6",
+        "primaryHover": "#2563eb",
+        "accent": "#10b981",
+        "danger": "#ef4444",
+        "warning": "#f59e0b",
+        "border": "#e2e8f0",
+        "shadow": "rgba(0, 0, 0, 0.1)",
+        "overlay": "rgba(0, 0, 0, 0.5)",
+        "mapFloor": "#f1f5f9",
+        "mapWall": "#64748b",
+        "mapZone": "rgba(59, 130, 246, 0.1)",
+        "mapZoneBorder": "rgba(59, 130, 246, 0.3)",
+        "mapDesk": "#fbbf24",
+        "mapSpot": "#10b981",
+        "avatarDefault": "#3b82f6"
+    }
+}

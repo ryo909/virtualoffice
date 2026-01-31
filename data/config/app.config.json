@@ -1,0 +1,28 @@
+{
+  "supabase": {
+    "url": "https://xhhgjuhprlgxnysmkwpj.supabase.co",
+    "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoaGdqdWhwcmxneG55c21rd3BqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4NTgwMzQsImV4cCI6MjA4NTQzNDAzNH0.YpuDTh7Tu4Xf508dSr3zG6S1C0ex-mu7aG6FxPutiWA",
+    "sharedEmail": "rinmon.8713@gmail.com"
+  },
+  "defaultAreaId": "area:core",
+  "defaultThemeId": "theme:day",
+  "presence": {
+    "tickMs": 1500,
+    "awayAfterMs": 600000
+  },
+  "chat": {
+    "enabled": true
+  },
+  "warp": {
+    "enabled": true
+  },
+  "call": {
+    "enabled": true,
+    "ringTimeoutSec": 30
+  },
+  "webrtc": {
+    "iceServers": [
+      { "urls": ["stun:stun.cloudflare.com:3478"] }
+    ]
+  }
+}

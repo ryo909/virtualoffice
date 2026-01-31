@@ -1,0 +1,154 @@
+{
+    "meta": {
+        "id": "map:core",
+        "version": 1,
+        "size": {
+            "w": 2400,
+            "h": 1400
+        },
+        "styleHint": "gather-like layout; google-office creative vibe; clean, airy; not pixel-art mandatory",
+        "notes": [
+            "Lobby near meeting rooms and common table (relative position fixed).",
+            "Expansion areas are intentionally spacious."
+        ]
+    },
+    "spawnPoints": {
+        "lobby": {
+            "x": 260,
+            "y": 260
+        }
+    },
+    "walkable": [
+        {
+            "type": "rect",
+            "x": 80,
+            "y": 120,
+            "w": 2240,
+            "h": 1180
+        }
+    ],
+    "obstacles": [
+        {
+            "type": "rect",
+            "x": 60,
+            "y": 100,
+            "w": 2280,
+            "h": 30,
+            "tag": "wall_top"
+        },
+        {
+            "type": "rect",
+            "x": 60,
+            "y": 1300,
+            "w": 2280,
+            "h": 30,
+            "tag": "wall_bottom"
+        },
+        {
+            "type": "rect",
+            "x": 60,
+            "y": 100,
+            "w": 30,
+            "h": 1230,
+            "tag": "wall_left"
+        },
+        {
+            "type": "rect",
+            "x": 2310,
+            "y": 100,
+            "w": 30,
+            "h": 1230,
+            "tag": "wall_right"
+        },
+        {
+            "type": "rect",
+            "x": 120,
+            "y": 160,
+            "w": 520,
+            "h": 260,
+            "tag": "lobby_island"
+        }
+    ],
+    "zones": [
+        {
+            "id": "area:lobby",
+            "label": "Lobby",
+            "bounds": {
+                "x": 120,
+                "y": 160,
+                "w": 520,
+                "h": 260
+            }
+        },
+        {
+            "id": "area:meeting",
+            "label": "Meeting",
+            "bounds": {
+                "x": 720,
+                "y": 150,
+                "w": 980,
+                "h": 360
+            }
+        },
+        {
+            "id": "area:desks",
+            "label": "Desks",
+            "bounds": {
+                "x": 720,
+                "y": 560,
+                "w": 980,
+                "h": 720
+            }
+        },
+        {
+            "id": "area:expansion_left",
+            "label": "Studio",
+            "bounds": {
+                "x": 120,
+                "y": 480,
+                "w": 520,
+                "h": 800
+            }
+        },
+        {
+            "id": "area:expansion_right",
+            "label": "Lounge",
+            "bounds": {
+                "x": 1740,
+                "y": 150,
+                "w": 520,
+                "h": 1130
+            }
+        }
+    ],
+    "decor": [
+        {
+            "type": "label",
+            "x": 160,
+            "y": 200,
+            "text": "Lobby",
+            "style": "h1"
+        },
+        {
+            "type": "label",
+            "x": 760,
+            "y": 190,
+            "text": "Meeting Rooms",
+            "style": "h1"
+        },
+        {
+            "type": "label",
+            "x": 760,
+            "y": 600,
+            "text": "Desks",
+            "style": "h1"
+        },
+        {
+            "type": "label",
+            "x": 1800,
+            "y": 200,
+            "text": "Lounge / Spare Space",
+            "style": "h2"
+        }
+    ]
+}

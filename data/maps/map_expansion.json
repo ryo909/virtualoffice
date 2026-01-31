@@ -1,0 +1,57 @@
+{
+    "meta": {
+        "id": "map:expansion",
+        "version": 1
+    },
+    "rooms": [
+        {
+            "id": "room:studio",
+            "label": "Studio (spare)",
+            "bounds": {
+                "x": 140,
+                "y": 520,
+                "w": 480,
+                "h": 340
+            }
+        },
+        {
+            "id": "room:quiet",
+            "label": "Quiet (spare)",
+            "bounds": {
+                "x": 140,
+                "y": 900,
+                "w": 480,
+                "h": 360
+            }
+        },
+        {
+            "id": "room:lounge",
+            "label": "Lounge (spare)",
+            "bounds": {
+                "x": 1760,
+                "y": 240,
+                "w": 480,
+                "h": 520
+            }
+        },
+        {
+            "id": "room:gallery",
+            "label": "Gallery (spare)",
+            "bounds": {
+                "x": 1760,
+                "y": 820,
+                "w": 480,
+                "h": 420
+            }
+        }
+    ],
+    "decor": [
+        {
+            "type": "label",
+            "x": 200,
+            "y": 560,
+            "text": "Spare Rooms",
+            "style": "h2"
+        }
+    ]
+}
