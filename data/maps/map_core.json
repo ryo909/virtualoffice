@@ -55,18 +55,20 @@
         {
             "type": "rect",
             "x": 22,
-            "y": 165,
+            "y": 155,
             "w": 596,
-            "h": 75,
-            "tag": "corridor_horizontal_mid"
+            "h": 95,
+            "tag": "corridor_horizontal_mid",
+            "note": "Extended to y=155 with h=95 to overlap with areas at y=240"
         },
         {
             "type": "rect",
             "x": 295,
             "y": 240,
             "w": 50,
-            "h": 118,
-            "tag": "corridor_vertical_mid"
+            "h": 200,
+            "tag": "corridor_vertical_mid",
+            "note": "Extended to reach lower areas"
         },
         {
             "type": "rect",
@@ -89,24 +91,18 @@
             "x": 210,
             "y": 220,
             "w": 220,
-            "h": 210,
-            "tag": "collab_lounge_area"
+            "h": 230,
+            "tag": "collab_lounge_area",
+            "note": "Extended to h=230 to connect with desks area"
         },
         {
             "type": "rect",
             "x": 22,
             "y": 430,
-            "w": 220,
+            "w": 596,
             "h": 188,
-            "tag": "cafeteria_area"
-        },
-        {
-            "type": "rect",
-            "x": 210,
-            "y": 430,
-            "w": 408,
-            "h": 188,
-            "tag": "desks_area"
+            "tag": "bottom_row",
+            "note": "Single large walkable covering cafeteria and desks area"
         }
     ],
     "obstacles": [

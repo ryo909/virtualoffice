@@ -36,6 +36,35 @@ export function canMoveTo(x, y) {
 }
 
 /**
+ * Debug version of canMoveTo - returns reason for failure
+ * @param {number} x 
+ * @param {number} y 
+ * @returns {{ok: boolean, reason?: string, obstacle?: object}}
+ */
+export function canMoveToDebug(x, y) {
+    const world = getWorldModel();
+    if (!world) return { ok: false, reason: 'no_world' };
+
+    let inWalkable = false;
+    for (const area of world.walkable) {
+        if (isPointInRect(x, y, area, AVATAR_RADIUS)) {
+            inWalkable = true;
+            break;
+        }
+    }
+
+    if (!inWalkable) return { ok: false, reason: 'outside_walkable' };
+
+    for (const obs of world.obstacles) {
+        if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
+            return { ok: false, reason: 'hit_obstacle', obstacle: obs };
+        }
+    }
+
+    return { ok: true };
+}
+
+/**
  * Check if point is inside rect with margin
  */
 function isPointInRect(px, py, rect, margin = 0) {
@@ -99,22 +128,37 @@ export function constrainPosition(x, y) {
 }
 
 /**
- * Simple pathfinding - direct line with obstacle avoidance
- * For MVP, we use simple step-based movement
+ * Pathfinding with neighbor search
+ * Tries direct path first, then searches nearby valid points in circles
  */
 export function findPath(fromX, fromY, toX, toY) {
-    // For MVP: just return direct path if walkable, or constrained target
+    // Direct path - if target is walkable, go there
     if (canMoveTo(toX, toY)) {
         return { x: toX, y: toY };
     }
 
-    // Try to find closest walkable point
-    const constrained = constrainPosition(toX, toY);
-    if (canMoveTo(constrained.x, constrained.y)) {
-        return constrained;
+    // Try constrained position first
+    const base = constrainPosition(toX, toY);
+    if (canMoveTo(base.x, base.y)) {
+        return base;
     }
 
-    // Fall back to current position
+    // Neighbor search - circular sampling to find valid point
+    const STEP = 16;      // Search resolution
+    const MAX_R = 320;    // Max search radius
+
+    for (let r = STEP; r <= MAX_R; r += STEP) {
+        for (let a = 0; a < 360; a += 30) {
+            const rad = (a * Math.PI) / 180;
+            const x = base.x + Math.cos(rad) * r;
+            const y = base.y + Math.sin(rad) * r;
+            if (canMoveTo(x, y)) {
+                return { x, y };
+            }
+        }
+    }
+
+    // Last resort - stay at current position
     return { x: fromX, y: fromY };
 }
 

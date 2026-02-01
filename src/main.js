@@ -3,7 +3,7 @@
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
 import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera, applyZoom } from './world/mapRenderer.js';
 import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove } from './world/movement.js';
-import { canMoveTo } from './world/collision.js';
+import { canMoveTo, canMoveToDebug } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
@@ -383,18 +383,20 @@ export async function initApp(appConfig, session) {
         const worldPos = screenToWorld(screenX, screenY);
 
         // Debug: Track click coordinates for verification
+        const moveDebug = canMoveToDebug(worldPos.x, worldPos.y);
         debug.lastClick = {
             screen: { x: Math.round(screenX), y: Math.round(screenY) },
             world: { x: Math.round(worldPos.x), y: Math.round(worldPos.y) },
             time: Date.now()
         };
         debug.lastWorldPos = worldPos;
-        debug.canMoveTo = canMoveTo(worldPos.x, worldPos.y);
+        debug.canMoveTo = moveDebug.ok;
+        debug.moveReason = moveDebug.reason;
 
         console.log('[Click]', {
             screen: debug.lastClick.screen,
             world: debug.lastClick.world,
-            canMoveTo: debug.canMoveTo,
+            canMoveTo: moveDebug,
             camera: getCamera()
         });
 
