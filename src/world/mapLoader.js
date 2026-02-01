@@ -93,7 +93,8 @@ export async function loadMaps() {
             ...(desksData.zones || []),
             ...(expansion.zones || [])
         ];
-        const normalizedDesks = normalizeDesks(desksData.desks || [], core.meta?.size);
+        const floorRect = getAssignedDesksFloorRect(desksData);
+        const normalizedDesks = normalizeDesks(desksData.desks || [], core.meta?.size, floorRect);
         const walkableBase = [
             ...(core.walkable || []),
             ...(desksData.walkable || []),
@@ -350,69 +351,81 @@ function getDeskBaseRect(desk) {
     return { x: 0, y: 0, w: 120, h: 90 };
 }
 
-function normalizeDesks(desks = [], size) {
+function normalizeDesks(desks = [], size, floorRect) {
     const W = size?.w || size?.width || 0;
     const H = size?.h || size?.height || 0;
     const TILE = size?.tileSize || 16;
     let maxX = 0;
     let maxY = 0;
+    let minX = Infinity;
+    let minY = Infinity;
 
     desks.forEach(desk => {
         const points = [desk.pos, desk.standPoint].filter(Boolean);
         points.forEach(p => {
-            if (Number.isFinite(p.x)) maxX = Math.max(maxX, p.x);
-            if (Number.isFinite(p.y)) maxY = Math.max(maxY, p.y);
+            if (Number.isFinite(p.x)) {
+                maxX = Math.max(maxX, p.x);
+                minX = Math.min(minX, p.x);
+            }
+            if (Number.isFinite(p.y)) {
+                maxY = Math.max(maxY, p.y);
+                minY = Math.min(minY, p.y);
+            }
         });
-        if (desk.bounds) {
-            maxX = Math.max(maxX, desk.bounds.x + desk.bounds.w);
-            maxY = Math.max(maxY, desk.bounds.y + desk.bounds.h);
-        }
     });
+
+    const bboxW = isFinite(minX) ? (maxX - minX) : 0;
+    const bboxH = isFinite(minY) ? (maxY - minY) : 0;
+    const bboxLooksInWorld = W && H && maxX <= W && maxY <= H;
 
     let scale = 1;
     if (W && H && maxX <= W / 4 && maxY <= H / 4) {
         scale = TILE;
     }
 
+    const shouldMapToFloor = !bboxLooksInWorld && floorRect && bboxW > 0 && bboxH > 0;
+
     return desks.map(desk => {
         const next = { ...desk };
 
-        const pos = desk.pos ? { x: desk.pos.x * scale, y: desk.pos.y * scale } : null;
-        const stand = desk.standPoint ? { x: desk.standPoint.x * scale, y: desk.standPoint.y * scale } : null;
-        const bounds = desk.bounds
-            ? {
-                x: desk.bounds.x * scale,
-                y: desk.bounds.y * scale,
-                w: desk.bounds.w * scale,
-                h: desk.bounds.h * scale
-            }
-            : null;
+        const posRaw = desk.pos ? { x: desk.pos.x * scale, y: desk.pos.y * scale } : null;
+        const standRaw = desk.standPoint ? { x: desk.standPoint.x * scale, y: desk.standPoint.y * scale } : null;
 
-        const standIsRelative = stand && pos
-            ? Math.abs(stand.x) <= 60 && Math.abs(stand.y) <= 60
-            : false;
-        const standPointAbs = standIsRelative && pos
-            ? { x: pos.x + stand.x, y: pos.y + stand.y }
-            : stand;
+        let posAbs = posRaw;
+        let standAbs = standRaw;
 
-        const boundsIsRelative = bounds && pos
-            ? (bounds.x < 0 || bounds.y < 0 || bounds.x <= 120 || bounds.y <= 120)
-            : false;
-        const boundsAbs = boundsIsRelative && pos
-            ? { x: pos.x + bounds.x, y: pos.y + bounds.y, w: bounds.w, h: bounds.h }
-            : bounds;
+        if (shouldMapToFloor && posRaw) {
+            const nx = (posRaw.x - minX) / (bboxW || 1);
+            const ny = (posRaw.y - minY) / (bboxH || 1);
+            posAbs = {
+                x: floorRect.x + nx * floorRect.w,
+                y: floorRect.y + ny * floorRect.h
+            };
+        }
 
-        next.pos = pos;
-        next.standPoint = stand;
-        next.bounds = bounds;
-        next.posAbs = pos;
-        next.standPointAbs = standPointAbs;
-        next.boundsAbs = boundsAbs;
-        next.colliderAbs = boundsAbs;
+        if (shouldMapToFloor && standRaw) {
+            const nx = (standRaw.x - minX) / (bboxW || 1);
+            const ny = (standRaw.y - minY) / (bboxH || 1);
+            standAbs = {
+                x: floorRect.x + nx * floorRect.w,
+                y: floorRect.y + ny * floorRect.h
+            };
+        }
+
+        if (standAbs && posAbs && Math.abs(standAbs.x - posAbs.x) <= 60 && Math.abs(standAbs.y - posAbs.y) <= 60) {
+            standAbs = { x: posAbs.x + (standRaw?.x || 0), y: posAbs.y + (standRaw?.y || 0) };
+        }
+
+        next.posRaw = posRaw;
+        next.standPointRaw = standRaw;
+        next.posAbs = posAbs;
+        next.standPointAbs = standAbs;
+        next.pos = posAbs;
+        next.standPoint = standAbs;
         next.__debug = {
-            posAbs: next.posAbs,
-            standAbs: standPointAbs,
-            boundsAbs
+            posAbs,
+            standAbs,
+            floorRect
         };
 
         if (W && H) {
@@ -425,6 +438,18 @@ function normalizeDesks(desks = [], size) {
         }
         return next;
     });
+}
+
+function getAssignedDesksFloorRect(desksData) {
+    const walkable = desksData?.walkable || [];
+    const fromWalkable = walkable.find(r => r.tag === 'assigned_desks_floor');
+    if (fromWalkable) return { x: fromWalkable.x, y: fromWalkable.y, w: fromWalkable.w, h: fromWalkable.h };
+
+    const zones = desksData?.zones || [];
+    const zone = zones.find(z => z.id === 'zone:desks');
+    if (zone?.bounds) return { x: zone.bounds.x, y: zone.bounds.y, w: zone.bounds.w, h: zone.bounds.h };
+
+    return null;
 }
 
 export function getWorldModel() {

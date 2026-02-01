@@ -343,6 +343,7 @@ function drawCollisionDebug(world, playerPos) {
     const zones = world.zones || [];
     const spots = getSpots() || [];
     const desks = world.desks || [];
+    const floorRect = world.desks?.[0]?.__debug?.floorRect;
     const moveDebug = window.__moveDebug;
     const walkDebug = window.__walkDebug;
     const debugCfg = getConfig()?.debug || {};
@@ -422,6 +423,12 @@ function drawCollisionDebug(world, playerPos) {
                 ctx.fill();
             }
         });
+    }
+
+    if (showDeskColliders && floorRect) {
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(floorRect.x, floorRect.y, floorRect.w, floorRect.h);
     }
 
     // Zones (blue outline + label)
