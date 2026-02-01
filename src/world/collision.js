@@ -1,6 +1,7 @@
 // collision.js - Collision detection
 
 import { getWorldModel } from './mapLoader.js';
+import { getConfig } from '../services/supabaseClient.js';
 
 const AVATAR_RADIUS = 14;
 
@@ -34,10 +35,12 @@ export function canMoveTo(x, y) {
     if (!inWalkable) return false;
 
     // Check collision with obstacles (still use AVATAR_RADIUS for obstacle collision)
-    const obstacles = getObstacles(world);
-    for (const obs of obstacles) {
-        if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
-            return false;
+    if (!isObstaclesDisabled()) {
+        const obstacles = getObstacles(world);
+        for (const obs of obstacles) {
+            if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
+                return false;
+            }
         }
     }
 
@@ -90,10 +93,12 @@ export function canMoveToDebug(x, y) {
         };
     }
 
-    const obstacles = getObstacles(world);
-    for (const obs of obstacles) {
-        if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
-            return { ok: false, reason: 'hit_obstacle', obstacle: obs.tag || obs };
+    if (!isObstaclesDisabled()) {
+        const obstacles = getObstacles(world);
+        for (const obs of obstacles) {
+            if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
+                return { ok: false, reason: 'hit_obstacle', obstacle: obs.tag || obs };
+            }
         }
     }
 
@@ -415,6 +420,11 @@ export function getNearestWalkableDistance(x, y) {
 
 function getObstacles(world) {
     return world.obstaclesFinal || world.obstacles || [];
+}
+
+function isObstaclesDisabled() {
+    const cfg = getConfig();
+    return cfg?.debug?.disableObstacles === true;
 }
 
 function isInWorldBounds(world, x, y) {

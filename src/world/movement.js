@@ -63,10 +63,9 @@ export function setMoveTarget(x, y) {
         start: { x: Math.round(currentPos.x), y: Math.round(currentPos.y) }
     });
     console.log(
-        `[WALKDBG] click (${Math.round(x)},${Math.round(y)}) ` +
+        `[WALKDBG] click=(${Math.round(x)},${Math.round(y)}) ` +
         `inWalkable=${walkableHit.hit} inObstacle=${obstacleHit.hit} ` +
-        `walkableHitCount=${walkableHit.count} obstacleHitCount=${obstacleHit.count} ` +
-        `snappedTo=(${Math.round(snapped.x)},${Math.round(snapped.y)})`
+        `snapped=(${Math.round(snapped.x)},${Math.round(snapped.y)})`
     );
 
     const zoneAtClick = getZoneAt(x, y);
@@ -123,6 +122,10 @@ export function setMoveTarget(x, y) {
         click: { x, y },
         goal: { x: pathResult.x, y: pathResult.y },
         start: { x: currentPos.x, y: currentPos.y }
+    };
+    window.__walkDebug = {
+        click: { x, y },
+        snapped: { x: snapped.x, y: snapped.y }
     };
 
     // For debugging: skip collision check if DEBUG_COLLISION is true

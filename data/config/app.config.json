@@ -20,6 +20,9 @@
     "enabled": true,
     "ringTimeoutSec": 30
   },
+  "debug": {
+    "disableObstacles": false
+  },
   "webrtc": {
     "iceServers": [
       { "urls": ["stun:stun.cloudflare.com:3478"] }

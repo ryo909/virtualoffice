@@ -97,6 +97,9 @@ const debug = {
 // ========== Initialization ==========
 export async function initApp(appConfig, session) {
     config = appConfig;
+    if (window.DEBUG_COLLISION === undefined) {
+        window.DEBUG_COLLISION = false;
+    }
 
     // Get or create session ID
     let sessionId = getSessionId();
@@ -481,6 +484,10 @@ export async function initApp(appConfig, session) {
         if (e.key.toLowerCase() === 'd') keys.d = true;
 
         // Debug keys
+        if (e.key === 'F9') {
+            window.DEBUG_COLLISION = !window.DEBUG_COLLISION;
+            console.log('[DEBUG] Collision Debug', window.DEBUG_COLLISION ? 'ON' : 'OFF');
+        }
         if (e.key.toLowerCase() === 'g') {
             // G: Force set move target +200 right
             const p = getCurrentPos();

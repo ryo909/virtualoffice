@@ -341,6 +341,7 @@ function drawCollisionDebug(world, playerPos) {
     const zones = world.zones || [];
     const spots = getSpots() || [];
     const moveDebug = window.__moveDebug;
+    const walkDebug = window.__walkDebug;
 
     ctx.save();
 
@@ -376,11 +377,11 @@ function drawCollisionDebug(world, playerPos) {
         ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
     });
 
-    // Zones (yellow outline + label)
-    ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)';
+    // Zones (blue outline + label)
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
     ctx.lineWidth = 1;
     ctx.font = '12px sans-serif';
-    ctx.fillStyle = 'rgba(250, 204, 21, 0.9)';
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.9)';
     zones.forEach(zone => {
         const b = zone.bounds;
         if (!b) return;
@@ -389,6 +390,30 @@ function drawCollisionDebug(world, playerPos) {
             ctx.fillText(zone.id, b.x + 4, b.y + 12);
         }
     });
+
+    if (walkDebug?.click) {
+        // Click point (yellow)
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.9)';
+        ctx.beginPath();
+        ctx.arc(walkDebug.click.x, walkDebug.click.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    if (walkDebug?.snapped) {
+        // Line from player to snapped point
+        ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(playerPos.x, playerPos.y);
+        ctx.lineTo(walkDebug.snapped.x, walkDebug.snapped.y);
+        ctx.stroke();
+
+        // Snapped point (cyan)
+        ctx.fillStyle = 'rgba(34, 211, 238, 0.9)';
+        ctx.beginPath();
+        ctx.arc(walkDebug.snapped.x, walkDebug.snapped.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     if (moveDebug?.click && moveDebug?.goal && moveDebug?.start) {
         // Line from start to goal
