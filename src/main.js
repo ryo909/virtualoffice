@@ -95,6 +95,7 @@ let lastActivityTime = Date.now();
 let animationFrameId = null;
 let config = null;
 let deskCallState = { status: 'idle' };
+let prevPosBeforeSit = null;
 
 // Debug object for coordinate verification
 const debug = {
@@ -280,7 +281,13 @@ export async function initApp(appConfig, session) {
             }
             state.world.seatedDeskId = desk.id;
             state.world.forcedSeated = false;
-            teleportTo(desk.standPoint.x, desk.standPoint.y);
+            const p = getCurrentPos();
+            prevPosBeforeSit = { x: p.x, y: p.y };
+            if (desk.standPoint) {
+                teleportTo(desk.standPoint.x, desk.standPoint.y);
+            } else if (desk.pos) {
+                teleportTo(desk.pos.x, desk.pos.y);
+            }
             hideContextPanel();
             refreshDeskPanel();
         },
@@ -288,6 +295,10 @@ export async function initApp(appConfig, session) {
             state.world.seatedDeskId = null;
             state.world.forcedSeated = false;
             leaveDeskCall();
+            if (prevPosBeforeSit) {
+                teleportTo(prevPosBeforeSit.x, prevPosBeforeSit.y);
+                prevPosBeforeSit = null;
+            }
             hideContextPanel();
             refreshDeskPanel();
         },

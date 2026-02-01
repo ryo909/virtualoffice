@@ -295,22 +295,10 @@ function isDeskObstacle(obs) {
 function buildDeskColliders(desks = []) {
     return desks.map(desk => {
         const base = getDeskBaseRect(desk);
-        const baseW = base.w;
-        const baseH = base.h;
-        const deskWidthRatio = 0.6;
-        const deskHeightRatio = 0.45;
-        const deskYOffsetRatio = 0.18;
-        const topCutRatio = 0.35;
-
-        const colliderW = Math.max(1, baseW * deskWidthRatio);
-        const colliderH = Math.max(1, baseH * deskHeightRatio);
-        const yOffset = baseH * deskYOffsetRatio;
-        const topCut = Math.min(colliderH - 1, Math.max(0, colliderH * topCutRatio));
-
-        const x = base.x + (baseW - colliderW) / 2;
-        const y = base.y + yOffset + topCut;
-        const width = colliderW;
-        const height = Math.max(1, colliderH - topCut);
+        const x = base.x + (base.w / 2) - 18;
+        const y = base.y + 8;
+        const width = 36;
+        const height = 16;
         return {
             x,
             y,
