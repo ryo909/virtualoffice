@@ -203,6 +203,18 @@
             }
         }
     ],
+    "zones": [
+        {
+            "id": "zone:desks",
+            "bounds": {
+                "x": 210,
+                "y": 430,
+                "w": 408,
+                "h": 188
+            },
+            "walkable": true
+        }
+    ],
     "deskRules": {
         "initialMode": "fixed",
         "futureMode": "free",

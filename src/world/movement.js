@@ -1,6 +1,16 @@
 // movement.js - Avatar movement handling
 
-import { canMoveTo, canMoveToDebug, constrainPosition, findPath, getZoneAt, getNearestWalkableDistance, AVATAR_RADIUS } from './collision.js';
+import {
+    canMoveTo,
+    canMoveToDebug,
+    constrainPosition,
+    findPath,
+    getZoneAt,
+    getNearestWalkableDistance,
+    isPointInAnyRect,
+    snapPointToWalkable,
+    AVATAR_RADIUS
+} from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
@@ -41,10 +51,23 @@ export function setMoveTarget(x, y) {
         return;
     }
 
+    const walkableRects = world.walkableInflated || world.walkableFinal || world.walkable || [];
+    const obstacleRects = world.obstaclesFinal || world.obstacles || [];
+    const clickPoint = { x, y };
+    const walkableHit = isPointInAnyRect(clickPoint, walkableRects);
+    const obstacleHit = isPointInAnyRect(clickPoint, obstacleRects);
+    const snapped = snapPointToWalkable(clickPoint);
+
     console.log('[MOVE] click pre-findPath', {
         click: { x: Math.round(x), y: Math.round(y) },
         start: { x: Math.round(currentPos.x), y: Math.round(currentPos.y) }
     });
+    console.log(
+        `[WALKDBG] click (${Math.round(x)},${Math.round(y)}) ` +
+        `inWalkable=${walkableHit.hit} inObstacle=${obstacleHit.hit} ` +
+        `walkableHitCount=${walkableHit.count} obstacleHitCount=${obstacleHit.count} ` +
+        `snappedTo=(${Math.round(snapped.x)},${Math.round(snapped.y)})`
+    );
 
     const zoneAtClick = getZoneAt(x, y);
     const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);

@@ -150,6 +150,10 @@ export async function loadMaps() {
         bootLog(`walkableInflated: ${walkableInflated.length}`);
         bootLog(`obstaclesFinal: ${obstaclesFinal.length}`);
         bootLog(`zones: ${zones.length}`);
+        bootLog(`walkable count: ${walkableFinal.length}`);
+        bootLog(`obstacles count: ${obstaclesFinal.length}`);
+        bootLog(`zones count: ${zones.length}`);
+        bootLog(`walkableFromZones count: ${walkableFromZones.length}`);
         bootLog('loadMaps: worldModel ready');
         return worldModel;
     } catch (err) {

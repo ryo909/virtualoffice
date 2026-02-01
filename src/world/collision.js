@@ -25,7 +25,7 @@ export function canMoveTo(x, y) {
     // Check if inside walkable area (margin = 0 for wider walkable)
     let inWalkable = false;
     for (const area of walkables) {
-        if (isPointInRect(x, y, area, WALKABLE_MARGIN)) {
+        if (isPointInRectRaw(x, y, area, WALKABLE_MARGIN)) {
             inWalkable = true;
             break;
         }
@@ -67,7 +67,7 @@ export function canMoveToDebug(x, y) {
     }
 
     for (const area of walkables) {
-        if (isPointInRect(x, y, area, WALKABLE_MARGIN)) {
+        if (isPointInRectRaw(x, y, area, WALKABLE_MARGIN)) {
             inWalkable = true;
             break;
         }
@@ -100,10 +100,31 @@ export function canMoveToDebug(x, y) {
     return { ok: true, reason: 'ok' };
 }
 
+export function isPointInRect(point, rect, margin = 0) {
+    if (!rect) return false;
+    return point.x >= rect.x + margin &&
+        point.x <= rect.x + rect.w - margin &&
+        point.y >= rect.y + margin &&
+        point.y <= rect.y + rect.h - margin;
+}
+
+export function isPointInAnyRect(point, rects, margin = 0) {
+    if (!rects || rects.length === 0) return { hit: false, count: 0 };
+    let count = 0;
+    for (const rect of rects) {
+        if (isPointInRect(point, rect, margin)) count += 1;
+    }
+    return { hit: count > 0, count };
+}
+
+export function snapPointToWalkable(point) {
+    return constrainPosition(point.x, point.y);
+}
+
 /**
  * Check if point is inside rect with margin
  */
-function isPointInRect(px, py, rect, margin = 0) {
+function isPointInRectRaw(px, py, rect, margin = 0) {
     return px >= rect.x + margin &&
         px <= rect.x + rect.w - margin &&
         py >= rect.y + margin &&
@@ -294,7 +315,7 @@ export function getZoneAt(x, y) {
 
     for (const zone of world.zones) {
         const bounds = zone.interactBounds || zone.bounds;
-        if (isPointInRect(x, y, bounds, 0)) {
+        if (isPointInRectRaw(x, y, bounds, 0)) {
             return zone;
         }
     }
