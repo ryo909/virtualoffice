@@ -1,5 +1,8 @@
 // mapLoader.js - Load and merge map data
 
+import { getConfig } from '../services/supabaseClient.js';
+import { furniture } from './mapStyles.js';
+
 let worldModel = null;
 
 // Helper for boot logging
@@ -107,6 +110,8 @@ export async function loadMaps() {
             ...(desksData.obstacles || []),
             ...(expansion.obstacles || [])
         ];
+        const worldObstacles = obstaclesFinal.filter(obs => !isDeskObstacle(obs));
+        const deskColliders = buildDeskColliders(desksData.desks || []);
 
         // Build world model
         worldModel = {
@@ -118,8 +123,10 @@ export async function loadMaps() {
             walkableFinal,
             walkableInflated,
             walkable: walkableFinal,
-            obstaclesFinal,
-            obstacles: obstaclesFinal,
+            worldObstacles,
+            deskColliders,
+            obstaclesFinal: [...worldObstacles, ...deskColliders],
+            obstacles: [...worldObstacles, ...deskColliders],
             zones,
             decor: [...(core.decor || []), ...(expansion.decor || [])],
             desks: desksData.desks || [],
@@ -152,6 +159,8 @@ export async function loadMaps() {
         bootLog(`zones: ${zones.length}`);
         bootLog(`walkable count: ${walkableFinal.length}`);
         bootLog(`obstacles count: ${obstaclesFinal.length}`);
+        bootLog(`worldObstacles count: ${worldObstacles.length}`);
+        bootLog(`deskColliders count: ${deskColliders.length}`);
         bootLog(`zones count: ${zones.length}`);
         bootLog(`walkableFromZones count: ${walkableFromZones.length}`);
         bootLog('loadMaps: worldModel ready');
@@ -267,6 +276,45 @@ function unionRects(a, b) {
         h: y2 - y1,
         tag: a.tag || b.tag
     };
+}
+
+function isDeskObstacle(obs) {
+    const tag = String(obs?.tag || '');
+    return tag.toLowerCase().includes('desk');
+}
+
+function getDeskColliderConfig() {
+    const cfg = getConfig();
+    const collision = cfg?.collision || {};
+    return {
+        insetX: Number.isFinite(collision.deskInsetX) ? collision.deskInsetX : 12,
+        clipTop: Number.isFinite(collision.deskClipTop) ? collision.deskClipTop : 22,
+        insetBottom: Number.isFinite(collision.deskInsetBottom) ? collision.deskInsetBottom : 8
+    };
+}
+
+function buildDeskColliders(desks = []) {
+    const { insetX, clipTop, insetBottom } = getDeskColliderConfig();
+    const w = furniture.desk.width;
+    const h = furniture.desk.height;
+
+    return desks.map(desk => {
+        const baseX = desk.pos.x - w / 2;
+        const baseY = desk.pos.y - h / 2;
+        const x = baseX + insetX;
+        const y = baseY + clipTop;
+        const width = Math.max(1, w - insetX * 2);
+        const height = Math.max(1, h - (clipTop + insetBottom));
+        return {
+            x,
+            y,
+            w: width,
+            h: height,
+            tag: `desk:${desk.id}`,
+            id: desk.id,
+            kind: 'desk'
+        };
+    });
 }
 
 export function getWorldModel() {

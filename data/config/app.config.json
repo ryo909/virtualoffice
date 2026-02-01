@@ -21,7 +21,14 @@
     "ringTimeoutSec": 30
   },
   "debug": {
-    "disableObstacles": false
+    "disableObstacles": false,
+    "drawDeskColliders": true,
+    "drawWorldObstacles": true
+  },
+  "collision": {
+    "deskInsetX": 12,
+    "deskClipTop": 22,
+    "deskInsetBottom": 8
   },
   "webrtc": {
     "iceServers": [

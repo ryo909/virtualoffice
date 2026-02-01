@@ -8,6 +8,7 @@ import {
     getZoneAt,
     getNearestWalkableDistance,
     isPointInAnyRect,
+    isPointInRect,
     snapPointToWalkable,
     AVATAR_RADIUS
 } from './collision.js';
@@ -52,6 +53,8 @@ export function setMoveTarget(x, y) {
     }
 
     const walkableRects = world.walkableInflated || world.walkableFinal || world.walkable || [];
+    const deskColliders = world.deskColliders || [];
+    const worldObstacles = world.worldObstacles || world.obstaclesFinal || world.obstacles || [];
     const obstacleRects = world.obstaclesFinal || world.obstacles || [];
     const clickPoint = { x, y };
     const walkableHit = isPointInAnyRect(clickPoint, walkableRects);
@@ -77,6 +80,17 @@ export function setMoveTarget(x, y) {
         `zone=${zoneAtClick?.id || 'null'} constrainedBecause=${constrainedBecause} ` +
         `snapped=(${Math.round(snapped.x)},${Math.round(snapped.y)})`
     );
+    if (obstacleHit.hit) {
+        const deskHit = findHitRect(clickPoint, deskColliders);
+        const worldHit = findHitRect(clickPoint, worldObstacles);
+        if (deskHit) {
+            console.log(`[WALKDBG] blockedBy=desk id=${deskHit}`);
+        } else if (worldHit) {
+            console.log(`[WALKDBG] blockedBy=world id=${worldHit}`);
+        } else {
+            console.log('[WALKDBG] blockedBy=unknown');
+        }
+    }
 
     const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);
     const walkableDebug = canMoveToDebug(x, y);
@@ -448,4 +462,14 @@ export function forceMove(dx, dy) {
     if (onMoveCallback) {
         onMoveCallback(currentPos, facing, false);
     }
+}
+
+function findHitRect(point, rects) {
+    if (!rects || rects.length === 0) return null;
+    for (const rect of rects) {
+        if (isPointInRect(point, rect, 0)) {
+            return rect.id || rect.tag || 'unknown';
+        }
+    }
+    return null;
 }

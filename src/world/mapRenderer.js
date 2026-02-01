@@ -1,6 +1,7 @@
 // mapRenderer.js - Canvas rendering for the map (Pixel Illustration Style)
 
 import { getWorldModel, getDesks, getSpots } from './mapLoader.js';
+import { getConfig } from '../services/supabaseClient.js';
 import { AVATAR_RADIUS } from './collision.js';
 
 // New render modules
@@ -337,11 +338,15 @@ function drawCollisionDebug(world, playerPos) {
     const walkableBase = world.walkableBase || [];
     const walkableFromZones = world.walkableFromZones || [];
     const walkableFinal = world.walkableInflated || world.walkableFinal || world.walkable || [];
-    const obstacles = world.obstaclesFinal || world.obstacles || [];
+    const worldObstacles = world.worldObstacles || world.obstaclesFinal || world.obstacles || [];
+    const deskColliders = world.deskColliders || [];
     const zones = world.zones || [];
     const spots = getSpots() || [];
     const moveDebug = window.__moveDebug;
     const walkDebug = window.__walkDebug;
+    const debugCfg = getConfig()?.debug || {};
+    const showWorldObstacles = debugCfg.drawWorldObstacles !== false;
+    const showDeskColliders = debugCfg.drawDeskColliders !== false;
 
     ctx.save();
 
@@ -370,12 +375,25 @@ function drawCollisionDebug(world, playerPos) {
         ctx.strokeRect(area.x, area.y, area.w, area.h);
     });
 
-    // Obstacles (red)
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
-    ctx.lineWidth = 2;
-    obstacles.forEach(obs => {
-        ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-    });
+    if (showWorldObstacles) {
+        // World obstacles (red)
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        ctx.lineWidth = 2;
+        worldObstacles.forEach(obs => {
+            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+        });
+    }
+
+    if (showDeskColliders) {
+        // Desk colliders (orange, semi-transparent)
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.25)';
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.9)';
+        ctx.lineWidth = 1.5;
+        deskColliders.forEach(desk => {
+            ctx.fillRect(desk.x, desk.y, desk.w, desk.h);
+            ctx.strokeRect(desk.x, desk.y, desk.w, desk.h);
+        });
+    }
 
     // Zones (blue outline + label)
     ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
