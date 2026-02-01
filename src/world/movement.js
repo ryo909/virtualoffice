@@ -1,6 +1,6 @@
 // movement.js - Avatar movement handling
 
-import { canMoveTo, constrainPosition, AVATAR_RADIUS } from './collision.js';
+import { canMoveTo, constrainPosition, findPath, AVATAR_RADIUS } from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
@@ -12,6 +12,9 @@ let facing = 'down';
 let isMoving = false;
 let onMoveCallback = null;
 let lastLogTime = 0;
+
+// Debug: last path result for external access
+export let lastPathResult = null;
 
 /**
  * Initialize movement system
@@ -26,9 +29,10 @@ export function initMovement(startPos, onMove) {
 
 /**
  * Set movement target (click destination)
+ * Uses findPath for proper nearby search and reason tracking
  */
 export function setMoveTarget(x, y) {
-    console.log('[MOVE] setMoveTarget called', { x, y });
+    console.log('[MOVE] setMoveTarget called', { requested: { x: Math.round(x), y: Math.round(y) } });
 
     const world = getWorldModel();
     if (!world) {
@@ -40,20 +44,27 @@ export function setMoveTarget(x, y) {
     if (DEBUG_COLLISION) {
         targetPos = { x, y };
         isMoving = true;
+        lastPathResult = { x, y, reason: 'debug_bypass' };
         console.log('[MOVE] target set (collision bypassed)', targetPos);
         return;
     }
 
-    // Constrain to walkable area
-    const constrained = constrainPosition(x, y);
-    console.log('[MOVE] constrained', constrained);
+    // Use findPath which includes nearby search and returns reason
+    const pathResult = findPath(currentPos.x, currentPos.y, x, y);
+    lastPathResult = pathResult;
 
-    if (canMoveTo(constrained.x, constrained.y)) {
-        targetPos = constrained;
+    console.log('[MOVE] findPath result', {
+        requested: { x: Math.round(x), y: Math.round(y) },
+        final: { x: Math.round(pathResult.x), y: Math.round(pathResult.y) },
+        reason: pathResult.reason
+    });
+
+    if (pathResult.reason !== 'stuck') {
+        targetPos = { x: pathResult.x, y: pathResult.y };
         isMoving = true;
-        console.log('[MOVE] target set', targetPos);
+        console.log('[MOVE] target set', targetPos, 'reason:', pathResult.reason);
     } else {
-        console.warn('[MOVE] canMoveTo returned false for', constrained);
+        console.warn('[MOVE] findPath returned stuck for', { x, y });
     }
 }
 

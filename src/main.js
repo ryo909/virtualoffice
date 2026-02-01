@@ -2,7 +2,7 @@
 
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
 import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera, applyZoom } from './world/mapRenderer.js';
-import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove } from './world/movement.js';
+import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove, lastPathResult } from './world/movement.js';
 import { canMoveTo, canMoveToDebug } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
@@ -582,7 +582,9 @@ export async function initApp(appConfig, session) {
             isMoving: getIsMoving(),
             lastTickMoveAt: now,
             lastRenderAt: now,
-            lastClickWorld: clickMarker
+            lastClickWorld: clickMarker,
+            canMoveTo: debug.canMoveTo,
+            pathReason: lastPathResult?.reason
         });
 
         animationFrameId = requestAnimationFrame(gameLoop);

@@ -196,17 +196,39 @@ export function applyZoom(delta, mouseScreenX, mouseScreenY) {
 
 /**
  * Convert screen coords to world coords (zoom-aware)
+ * 
+ * This function handles the transformation:
+ * 1. CSS pixel position (relative to canvas)
+ * 2. → Normalized position (0-1)
+ * 3. → World position (via camera center formula)
+ * 
+ * @param {number} screenX - X position in CSS pixels relative to canvas left
+ * @param {number} screenY - Y position in CSS pixels relative to canvas top
+ * @returns {{x: number, y: number}} World coordinates
  */
 export function screenToWorld(screenX, screenY) {
-    // Screen center in CSS pixels
-    const cx = canvasSize.w / 2;
-    const cy = canvasSize.h / 2;
+    // canvasSize is stored in CSS pixels (not internal resolution)
+    // This matches how we receive input coordinates
 
-    // Convert screen offset from center to world offset
-    const wx = (screenX - cx) / camera.zoom + camera.x;
-    const wy = (screenY - cy) / camera.zoom + camera.y;
+    // Step 1: Normalize to 0-1 range
+    const sx = screenX / canvasSize.w;
+    const sy = screenY / canvasSize.h;
 
-    return { x: wx, y: wy };
+    // Step 2: Convert to canvas internal coordinates (CSS pixels space)
+    const cx = sx * canvasSize.w;  // This equals screenX, but explicit for clarity
+    const cy = sy * canvasSize.h;  // This equals screenY, but explicit for clarity
+
+    // Step 3: Screen center in CSS pixels
+    const centerX = canvasSize.w / 2;
+    const centerY = canvasSize.h / 2;
+
+    // Step 4: Camera center formula
+    // The camera.x/y represents the world position at screen center
+    // Offset from center, divided by zoom, plus camera position
+    const worldX = (cx - centerX) / camera.zoom + camera.x;
+    const worldY = (cy - centerY) / camera.zoom + camera.y;
+
+    return { x: worldX, y: worldY };
 }
 
 /**

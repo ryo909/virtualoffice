@@ -46,8 +46,10 @@ export function updateDebugHud(newState) {
         `dt: ${state.dt.toFixed(1)}ms`,
         `isMoving: ${state.isMoving}`,
         `lastTick: ${(Date.now() - state.lastTickMoveAt)}ms ago`,
-        state.lastClickWorld ? `lastClick: (${state.lastClickWorld.x.toFixed(1)}, ${state.lastClickWorld.y.toFixed(1)})` : 'lastClick: null'
-    ];
+        state.lastClickWorld ? `lastClick: (${state.lastClickWorld.x.toFixed(1)}, ${state.lastClickWorld.y.toFixed(1)})` : 'lastClick: null',
+        `canMoveTo: ${state.canMoveTo ?? '-'}`,
+        state.pathReason ? `pathReason: ${state.pathReason}` : ''
+    ].filter(Boolean);
 
     hudElement.textContent = lines.join('\n');
 }
