@@ -93,7 +93,10 @@ export async function loadMaps() {
         ];
         const walkableFromZones = extractWalkableFromZones(zones);
         const walkableFinal = [...walkableBase, ...walkableFromZones];
-        const walkableInflated = inflateWalkables(walkableFinal, 3, core.meta?.size);
+        const walkableInflated = mergeWalkables(
+            inflateWalkables(walkableFinal, 4, core.meta?.size),
+            4
+        );
         const obstaclesFinal = [
             ...(core.obstacles || []),
             ...(expansion.obstacles || [])
@@ -204,6 +207,55 @@ function inflateWalkables(rects = [], pad = 0, size = null) {
             h: Math.max(0, clampedH)
         };
     }).filter(rect => rect.w > 0 && rect.h > 0);
+}
+
+function mergeWalkables(rects = [], gap = 0) {
+    const remaining = rects.slice();
+    const merged = [];
+
+    while (remaining.length > 0) {
+        let current = remaining.pop();
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+            for (let i = remaining.length - 1; i >= 0; i--) {
+                const other = remaining[i];
+                if (rectsOverlapOrClose(current, other, gap)) {
+                    current = unionRects(current, other);
+                    remaining.splice(i, 1);
+                    changed = true;
+                }
+            }
+        }
+
+        merged.push(current);
+    }
+
+    return merged;
+}
+
+function rectsOverlapOrClose(a, b, gap) {
+    return !(
+        a.x > b.x + b.w + gap ||
+        a.x + a.w + gap < b.x ||
+        a.y > b.y + b.h + gap ||
+        a.y + a.h + gap < b.y
+    );
+}
+
+function unionRects(a, b) {
+    const x1 = Math.min(a.x, b.x);
+    const y1 = Math.min(a.y, b.y);
+    const x2 = Math.max(a.x + a.w, b.x + b.w);
+    const y2 = Math.max(a.y + a.h, b.y + b.h);
+    return {
+        x: x1,
+        y: y1,
+        w: x2 - x1,
+        h: y2 - y1,
+        tag: a.tag || b.tag
+    };
 }
 
 export function getWorldModel() {
