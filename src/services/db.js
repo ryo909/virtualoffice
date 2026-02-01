@@ -2,6 +2,11 @@
 
 import { getSupabase } from './supabaseClient.js';
 
+function isMissingColumn(error, columnName) {
+    const message = typeof error?.message === 'string' ? error.message : '';
+    return message.includes(`'${columnName}'`) || message.includes(columnName);
+}
+
 /**
  * Get nameplate by display name
  * @param {string} displayName 
@@ -33,12 +38,22 @@ export async function getNameplateByDisplayName(displayName) {
 export async function isDisplayNameTaken(displayName, sessionId) {
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('nameplates')
-        .select('session_id')
+        .select('user_id')
         .eq('display_name', displayName)
-        .neq('session_id', sessionId)
+        .neq('user_id', sessionId)
         .maybeSingle();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for duplicate check.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .select('session_id')
+            .eq('display_name', displayName)
+            .neq('session_id', sessionId)
+            .maybeSingle());
+    }
 
     if (error) {
         console.error('Error checking display name:', error);
@@ -56,19 +71,36 @@ export async function isDisplayNameTaken(displayName, sessionId) {
 export async function upsertNameplate({ sessionId, displayName, avatarKey = null, avatarColor = null }) {
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('nameplates')
         .upsert({
-            session_id: sessionId,
+            user_id: sessionId,
             display_name: displayName,
             avatar_key: avatarKey,
             avatar_color: avatarColor,
             updated_at: new Date().toISOString()
         }, {
-            onConflict: 'session_id'
+            onConflict: 'user_id'
         })
         .select()
         .single();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for upsert.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .upsert({
+                session_id: sessionId,
+                display_name: displayName,
+                avatar_key: avatarKey,
+                avatar_color: avatarColor,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'session_id'
+            })
+            .select()
+            .single());
+    }
 
     if (error) {
         console.error('Error upserting nameplate:', error);
@@ -116,11 +148,20 @@ export async function getRoomSettings() {
 export async function getNameplateBySessionId(sessionId) {
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('nameplates')
         .select('*')
-        .eq('session_id', sessionId)
+        .eq('user_id', sessionId)
         .maybeSingle();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for lookup.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .select('*')
+            .eq('session_id', sessionId)
+            .maybeSingle());
+    }
 
     if (error) {
         console.error('Error fetching nameplate by session:', error);

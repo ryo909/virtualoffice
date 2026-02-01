@@ -3,18 +3,19 @@
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
-    updateCamera, applyZoom, setShowDebugSpots
+    updateCamera, applyZoom, setShowDebugSpots, getCamera
 } from './world/mapRenderer.js';
 import {
     initMovement, updateMovement, getCurrentPos,
     getFacing, getIsMoving, setMoveTarget,
-    stopMoving, setPosition
+    stopMoving, setPosition, getTarget, lastPathResult
 } from './world/movement.js';
 import { canMoveTo, canMoveToDebug } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel, getSortedSpotsAt } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
 import { updateAnimation } from './avatar/pixelSpriteRenderer.js';
+import { renderMinimap } from './ui/minimap.js';
 
 import { getConfig, getSupabase } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
@@ -77,7 +78,8 @@ const state = {
     },
     debug: {
         showSpots: false,
-        canMoveTo: null
+        canMoveTo: null,
+        lastPathResult: null
     }
 };
 
@@ -653,6 +655,7 @@ export async function initApp(appConfig, session) {
 
         // Update debug HUD
         const cam = getCamera();
+        state.debug.lastPathResult = lastPathResult ?? null;
         updateDebugHud({
             pos: pos,
             target: getTarget(),
@@ -663,7 +666,7 @@ export async function initApp(appConfig, session) {
             lastRenderAt: now,
             lastClickWorld: clickMarker,
             canMoveTo: debug.canMoveTo,
-            pathReason: lastPathResult?.reason
+            pathReason: state.debug.lastPathResult?.reason
         });
 
         animationFrameId = requestAnimationFrame(gameLoop);
@@ -834,21 +837,32 @@ export async function setupNameplate() {
 }
 
 export async function saveNameplate(displayName) {
-    // Check for duplicate
-    const taken = await isDisplayNameTaken(displayName, state.me.actorId);
-    if (taken) {
-        throw new Error('duplicate');
-    }
+    let didHitDuplicate = false;
 
-    await upsertNameplate({
-        sessionId: state.me.actorId,
-        displayName: displayName
-    });
+    try {
+        await upsertNameplate({
+            sessionId: state.me.actorId,
+            displayName: displayName
+        });
+    } catch (err) {
+        const message = typeof err?.message === 'string' ? err.message : '';
+        const isDuplicate = err?.code === '23505' || message.includes('duplicate') || message.includes('unique');
+        if (isDuplicate) {
+            didHitDuplicate = true;
+            console.warn('[Nameplate] Duplicate detected; continuing without blocking boot.', err);
+        } else {
+            throw err;
+        }
+    }
 
     state.me.displayName = displayName;
     setDisplayName(displayName);
     updateDisplayName(displayName);
     setDisplayNameInput(displayName);
+
+    if (didHitDuplicate) {
+        console.warn('[Nameplate] Duplicate prevented remote save; local name retained.');
+    }
 }
 
 export async function startPresence() {

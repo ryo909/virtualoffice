@@ -306,6 +306,11 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
     renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
 
+    // === Debug collision overlays ===
+    if (window.DEBUG_COLLISION) {
+        drawCollisionDebug(world, playerPos);
+    }
+
     ctx.restore();
 }
 
@@ -326,6 +331,50 @@ function drawActionSpots() {
             ctx.stroke();
         }
     });
+}
+
+function drawCollisionDebug(world, playerPos) {
+    const walkables = world.walkable || [];
+    const obstacles = world.obstacles || [];
+    const spots = getSpots() || [];
+
+    ctx.save();
+
+    // Walkable rects (green)
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
+    ctx.lineWidth = 2;
+    walkables.forEach(area => {
+        ctx.strokeRect(area.x, area.y, area.w, area.h);
+    });
+
+    // Obstacles (red)
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+    ctx.lineWidth = 2;
+    obstacles.forEach(obs => {
+        ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+    });
+
+    // Spots (blue)
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.85)';
+    ctx.lineWidth = 2;
+    spots.forEach(spot => {
+        if (spot.bounds) {
+            ctx.strokeRect(spot.bounds.x, spot.bounds.y, spot.bounds.w, spot.bounds.h);
+        } else if (spot.x !== undefined && spot.y !== undefined && spot.r !== undefined) {
+            ctx.beginPath();
+            ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    });
+
+    // Avatar radius (white)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(playerPos.x, playerPos.y, AVATAR_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 /**

@@ -1,6 +1,6 @@
 // movement.js - Avatar movement handling
 
-import { canMoveTo, constrainPosition, findPath, AVATAR_RADIUS } from './collision.js';
+import { canMoveTo, canMoveToDebug, constrainPosition, findPath, AVATAR_RADIUS } from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
@@ -52,6 +52,11 @@ export function setMoveTarget(x, y) {
     // Use findPath which includes nearby search and returns reason
     const pathResult = findPath(currentPos.x, currentPos.y, x, y);
     lastPathResult = pathResult;
+    console.log('[MOVE] lastPathResult coords', {
+        x: Math.round(pathResult.x),
+        y: Math.round(pathResult.y),
+        reason: pathResult.reason
+    });
 
     console.log('[MOVE] findPath result', {
         requested: { x: Math.round(x), y: Math.round(y) },
@@ -107,28 +112,82 @@ export function updateMovement(deltaMs) {
         return { pos: currentPos, facing, moving: false };
     }
 
-    // Move towards target
-    const ratio = moveDistance / distance;
-    const newX = currentPos.x + dx * ratio;
-    const newY = currentPos.y + dy * ratio;
+    // Move towards target (sub-stepped to avoid skipping narrow walkables)
+    const ratioRaw = moveDistance / distance;
+    const ratio = Math.min(1, ratioRaw);
 
-    // Update facing direction
+    const desiredX = currentPos.x + dx * ratio;
+    const desiredY = currentPos.y + dy * ratio;
+
+    // Update facing direction (based on intent)
     if (Math.abs(dx) > Math.abs(dy)) {
         facing = dx > 0 ? 'right' : 'left';
     } else {
         facing = dy > 0 ? 'down' : 'up';
     }
 
-    // For debugging: skip collision check
     if (DEBUG_COLLISION) {
-        currentPos = { x: newX, y: newY };
+        currentPos = { x: desiredX, y: desiredY };
     } else {
-        // Check if new position is walkable
-        if (canMoveTo(newX, newY)) {
-            currentPos = { x: newX, y: newY };
-        } else {
-            // Stop if blocked
-            console.warn('[MOVE] blocked at', { newX, newY });
+        const STEP = 4;
+        const totalDx = desiredX - currentPos.x;
+        const totalDy = desiredY - currentPos.y;
+        const totalDist = Math.sqrt(totalDx * totalDx + totalDy * totalDy);
+
+        const steps = Math.max(1, Math.ceil(totalDist / STEP));
+        let nx = currentPos.x;
+        let ny = currentPos.y;
+
+        let advanced = false;
+        let blocked = false;
+
+        for (let i = 0; i < steps; i++) {
+            const t = (i + 1) / steps;
+            const tx = currentPos.x + totalDx * t;
+            const ty = currentPos.y + totalDy * t;
+
+            if (canMoveTo(tx, ty)) {
+                nx = tx;
+                ny = ty;
+                advanced = true;
+                continue;
+            }
+
+            const tryX = canMoveTo(tx, ny);
+            const tryY = canMoveTo(nx, ty);
+
+            if (tryX && !tryY) {
+                nx = tx;
+                advanced = true;
+                continue;
+            }
+            if (!tryX && tryY) {
+                ny = ty;
+                advanced = true;
+                continue;
+            }
+            if (tryX && tryY) {
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    nx = tx;
+                } else {
+                    ny = ty;
+                }
+                advanced = true;
+                continue;
+            }
+
+            blocked = true;
+            console.warn('[MOVE] blocked at', { tx, ty, step: i + 1, steps });
+            try {
+                const dbg = canMoveToDebug(tx, ty);
+                console.warn('[MOVE] blocked reason', dbg);
+            } catch (e) {}
+            break;
+        }
+
+        currentPos = { x: nx, y: ny };
+
+        if (blocked && !advanced) {
             targetPos = null;
             isMoving = false;
         }
@@ -150,6 +209,19 @@ export function stopMovement() {
 }
 
 /**
+ * Safe wrapper for stopping movement (never throws)
+ */
+export function stopMoving() {
+    try {
+        stopMovement();
+    } catch (err) {
+        console.warn('[MOVE] stopMoving failed, forcing stop', err);
+        targetPos = null;
+        isMoving = false;
+    }
+}
+
+/**
  * Teleport to position
  */
 export function teleportTo(x, y) {
@@ -160,6 +232,21 @@ export function teleportTo(x, y) {
 
     if (onMoveCallback) {
         onMoveCallback(currentPos, facing, false);
+    }
+}
+
+export function setPosition(x, y) {
+    try {
+        const safeX = Number.isFinite(x) ? x : currentPos.x;
+        const safeY = Number.isFinite(y) ? y : currentPos.y;
+        teleportTo(safeX, safeY);
+    } catch (err) {
+        console.warn('[MOVE] setPosition failed, preserving current position', err);
+        targetPos = null;
+        isMoving = false;
+        if (onMoveCallback) {
+            onMoveCallback(currentPos, facing, false);
+        }
     }
 }
 

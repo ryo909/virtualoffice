@@ -147,6 +147,31 @@ export function constrainPosition(x, y) {
         }
     }
 
+    if (best && !canMoveTo(best.x, best.y)) {
+        const STEP = 8;
+        const MAX_R = 120;
+        let found = null;
+        let bestD = Infinity;
+
+        for (let r = STEP; r <= MAX_R; r += STEP) {
+            for (let a = 0; a < 360; a += 20) {
+                const rad = (a * Math.PI) / 180;
+                const nx = best.x + Math.cos(rad) * r;
+                const ny = best.y + Math.sin(rad) * r;
+                if (canMoveTo(nx, ny)) {
+                    const d = (nx - x) ** 2 + (ny - y) ** 2;
+                    if (d < bestD) {
+                        bestD = d;
+                        found = { x: nx, y: ny };
+                    }
+                }
+            }
+            if (found) break;
+        }
+
+        if (found) return found;
+    }
+
     return best || { x, y };
 }
 
@@ -160,23 +185,51 @@ export function findPath(fromX, fromY, toX, toY) {
         return { x: toX, y: toY, reason: 'direct' };
     }
 
-    // Nearby search FIRST (before constrainPosition to avoid fixed-point attraction)
-    // Small radius, fine step for precision
-    for (let r = 8; r <= 64; r += 8) {
-        for (let a = 0; a < 360; a += 30) {
+    // Try nearest safe walkable point first (stabilizes behavior near obstacles)
+    const base = constrainPosition(toX, toY);
+    if (canMoveTo(base.x, base.y)) {
+        return { x: base.x, y: base.y, reason: 'constrained' };
+    }
+
+    // Nearby search fallback, but bias toward the line from current->target (reduces sideways "slip")
+    const radii = [24, 48, 72, 96, 120];
+    let best = null;
+    let bestScore = Infinity;
+
+    function distToSegment(px, py, ax, ay, bx, by) {
+        const abx = bx - ax;
+        const aby = by - ay;
+        const apx = px - ax;
+        const apy = py - ay;
+        const abLen2 = abx * abx + aby * aby;
+        if (abLen2 === 0) return Math.hypot(px - ax, py - ay);
+        let t = (apx * abx + apy * aby) / abLen2;
+        t = Math.max(0, Math.min(1, t));
+        const cx = ax + abx * t;
+        const cy = ay + aby * t;
+        return Math.hypot(px - cx, py - cy);
+    }
+
+    for (const r of radii) {
+        for (let a = 0; a < 360; a += 20) {
             const rad = (a * Math.PI) / 180;
             const nx = toX + Math.cos(rad) * r;
             const ny = toY + Math.sin(rad) * r;
-            if (canMoveTo(nx, ny)) {
-                return { x: nx, y: ny, reason: `nearby:${r}` };
+            if (!canMoveTo(nx, ny)) continue;
+
+            const dClick = Math.hypot(nx - toX, ny - toY);
+            const dLine = distToSegment(nx, ny, fromX, fromY, toX, toY);
+            const score = dClick * 1.0 + dLine * 1.5;
+
+            if (score < bestScore) {
+                bestScore = score;
+                best = { x: nx, y: ny, r };
             }
         }
     }
 
-    // Try constrained position
-    const base = constrainPosition(toX, toY);
-    if (canMoveTo(base.x, base.y)) {
-        return { x: base.x, y: base.y, reason: 'constrained' };
+    if (best) {
+        return { x: best.x, y: best.y, reason: `nearby:${best.r}` };
     }
 
     // Wider neighbor search from constrained point
