@@ -1,6 +1,6 @@
 // movement.js - Avatar movement handling
 
-import { canMoveTo, canMoveToDebug, constrainPosition, findPath, getZoneAt, AVATAR_RADIUS } from './collision.js';
+import { canMoveTo, canMoveToDebug, constrainPosition, findPath, getZoneAt, getNearestWalkableDistance, AVATAR_RADIUS } from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
@@ -12,6 +12,7 @@ let facing = 'down';
 let isMoving = false;
 let onMoveCallback = null;
 let lastLogTime = 0;
+let lastMoveMeta = null;
 
 // Debug: last path result for external access
 export let lastPathResult = null;
@@ -40,16 +41,66 @@ export function setMoveTarget(x, y) {
         return;
     }
 
+    console.log('[MOVE] click pre-findPath', {
+        click: { x: Math.round(x), y: Math.round(y) },
+        start: { x: Math.round(currentPos.x), y: Math.round(currentPos.y) }
+    });
+
     const zoneAtClick = getZoneAt(x, y);
     const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);
     const walkableDebug = canMoveToDebug(x, y);
-    console.log('[MOVE] click debug', {
-        clicked: { x: Math.round(x), y: Math.round(y) },
-        isWalkable: canMoveTo(x, y),
+    const nearestWalkableDist = getNearestWalkableDistance(x, y);
+
+    // Use findPath which includes nearby search and returns reason
+    const pathResult = findPath(currentPos.x, currentPos.y, x, y);
+    lastPathResult = pathResult;
+
+    const startInWalkable = canMoveTo(currentPos.x, currentPos.y);
+    const goalInWalkable = canMoveTo(pathResult.x, pathResult.y);
+    const distStartGoal = Math.hypot(pathResult.x - currentPos.x, pathResult.y - currentPos.y);
+    const distClick = Math.hypot(x - currentPos.x, y - currentPos.y);
+    const goalSnapped = Math.round(pathResult.x) !== Math.round(x) || Math.round(pathResult.y) !== Math.round(y);
+    const goalNearlyStart = distStartGoal < 3;
+
+    const failReason = (() => {
+        if (walkableDebug?.reason === 'out_of_world') return 'out-of-world';
+        if (walkableDebug?.reason === 'not_in_walkable_final') return 'not-in-walkableFinal';
+        if (walkableDebug?.reason === 'hit_obstacle') return 'hit-obstacle';
+        if (pathResult.reason === 'stuck') return 'unreachable';
+        if (goalNearlyStart && distClick > 12) return 'snapped-to-start';
+        return 'ok';
+    })();
+
+    lastMoveMeta = {
+        click: { x, y },
+        goal: { x: pathResult.x, y: pathResult.y },
+        start: { x: currentPos.x, y: currentPos.y },
+        distStartGoal,
+        distClick,
+        goalSnapped,
+        snappedToStart: goalNearlyStart,
+        failReason
+    };
+
+    console.log('[MOVE] click/path debug', {
+        click: { x: Math.round(x), y: Math.round(y) },
+        goal: { x: Math.round(pathResult.x), y: Math.round(pathResult.y) },
+        startInWalkableFinal: startInWalkable,
+        goalInWalkableFinal: goalInWalkable,
+        nearestWalkableDist: Math.round(nearestWalkableDist),
+        pathLen: Math.round(pathResult.pathLen || 0),
+        failReason,
         zoneAt: zoneAtClick?.id || null,
         currentZone: zoneAtCurrent?.id || null,
-        reason: walkableDebug?.reason || 'ok'
+        snapped: goalSnapped,
+        goalNearlyStart
     });
+
+    window.__moveDebug = {
+        click: { x, y },
+        goal: { x: pathResult.x, y: pathResult.y },
+        start: { x: currentPos.x, y: currentPos.y }
+    };
 
     // For debugging: skip collision check if DEBUG_COLLISION is true
     if (DEBUG_COLLISION) {
@@ -60,9 +111,6 @@ export function setMoveTarget(x, y) {
         return;
     }
 
-    // Use findPath which includes nearby search and returns reason
-    const pathResult = findPath(currentPos.x, currentPos.y, x, y);
-    lastPathResult = pathResult;
     console.log('[MOVE] lastPathResult coords', {
         x: Math.round(pathResult.x),
         y: Math.round(pathResult.y),
@@ -74,6 +122,11 @@ export function setMoveTarget(x, y) {
         final: { x: Math.round(pathResult.x), y: Math.round(pathResult.y) },
         reason: pathResult.reason
     });
+
+    if (goalNearlyStart && distClick > 12) {
+        console.warn('[MOVE] snapped to start; treating as unreachable');
+        return;
+    }
 
     if (pathResult.reason !== 'stuck') {
         targetPos = { x: pathResult.x, y: pathResult.y };
@@ -111,9 +164,32 @@ export function updateMovement(deltaMs) {
 
     // Arrived at destination (distance < 4px)
     if (distance <= 4) {
+        const arrivedCheck = {
+            distToGoal: Math.round(distance),
+            goal: { x: Math.round(targetPos.x), y: Math.round(targetPos.y) },
+            start: lastMoveMeta?.start
+                ? { x: Math.round(lastMoveMeta.start.x), y: Math.round(lastMoveMeta.start.y) }
+                : null,
+            distStartGoal: lastMoveMeta ? Math.round(lastMoveMeta.distStartGoal) : null,
+            distClick: lastMoveMeta ? Math.round(lastMoveMeta.distClick) : null,
+            snappedToStart: lastMoveMeta?.snappedToStart || false
+        };
+        console.log('[MOVE] arrivedCheck', arrivedCheck);
+
+        if (lastMoveMeta?.snappedToStart && lastMoveMeta?.distClick > 12) {
+            targetPos = null;
+            isMoving = false;
+            console.warn('[MOVE] fail: unreachable (snapped to start)', arrivedCheck);
+            if (onMoveCallback) {
+                onMoveCallback(currentPos, facing, false);
+            }
+            return { pos: currentPos, facing, moving: false };
+        }
+
         currentPos = { ...targetPos };
         targetPos = null;
         isMoving = false;
+        lastMoveMeta = null;
         console.log('[MOVE] arrived', currentPos);
 
         if (onMoveCallback) {
@@ -201,6 +277,7 @@ export function updateMovement(deltaMs) {
         if (blocked && !advanced) {
             targetPos = null;
             isMoving = false;
+            lastMoveMeta = null;
         }
     }
 
@@ -217,6 +294,7 @@ export function updateMovement(deltaMs) {
 export function stopMovement() {
     targetPos = null;
     isMoving = false;
+    lastMoveMeta = null;
 }
 
 /**
@@ -229,6 +307,7 @@ export function stopMoving() {
         console.warn('[MOVE] stopMoving failed, forcing stop', err);
         targetPos = null;
         isMoving = false;
+        lastMoveMeta = null;
     }
 }
 
@@ -240,6 +319,7 @@ export function teleportTo(x, y) {
     currentPos = constrained;
     targetPos = null;
     isMoving = false;
+    lastMoveMeta = null;
 
     if (onMoveCallback) {
         onMoveCallback(currentPos, facing, false);
@@ -255,6 +335,7 @@ export function setPosition(x, y) {
         console.warn('[MOVE] setPosition failed, preserving current position', err);
         targetPos = null;
         isMoving = false;
+        lastMoveMeta = null;
         if (onMoveCallback) {
             onMoveCallback(currentPos, facing, false);
         }

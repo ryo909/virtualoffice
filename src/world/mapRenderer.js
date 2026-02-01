@@ -336,10 +336,11 @@ function drawActionSpots() {
 function drawCollisionDebug(world, playerPos) {
     const walkableBase = world.walkableBase || [];
     const walkableFromZones = world.walkableFromZones || [];
-    const walkableFinal = world.walkableFinal || world.walkable || [];
+    const walkableFinal = world.walkableInflated || world.walkableFinal || world.walkable || [];
     const obstacles = world.obstaclesFinal || world.obstacles || [];
     const zones = world.zones || [];
     const spots = getSpots() || [];
+    const moveDebug = window.__moveDebug;
 
     ctx.save();
 
@@ -352,6 +353,12 @@ function drawCollisionDebug(world, playerPos) {
     // Walkable from zones (blue fill)
     ctx.fillStyle = 'rgba(59, 130, 246, 0.18)';
     walkableFromZones.forEach(area => {
+        ctx.fillRect(area.x, area.y, area.w, area.h);
+    });
+
+    // Walkable final (green fill)
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.14)';
+    walkableFinal.forEach(area => {
         ctx.fillRect(area.x, area.y, area.w, area.h);
     });
 
@@ -382,6 +389,28 @@ function drawCollisionDebug(world, playerPos) {
             ctx.fillText(zone.id, b.x + 4, b.y + 12);
         }
     });
+
+    if (moveDebug?.click && moveDebug?.goal && moveDebug?.start) {
+        // Line from start to goal
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(moveDebug.start.x, moveDebug.start.y);
+        ctx.lineTo(moveDebug.goal.x, moveDebug.goal.y);
+        ctx.stroke();
+
+        // Click point (red)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+        ctx.beginPath();
+        ctx.arc(moveDebug.click.x, moveDebug.click.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Goal point (green)
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+        ctx.beginPath();
+        ctx.arc(moveDebug.goal.x, moveDebug.goal.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
 
     // Spots (blue)
     ctx.strokeStyle = 'rgba(59, 130, 246, 0.85)';

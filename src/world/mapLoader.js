@@ -87,9 +87,13 @@ export async function loadMaps() {
         bootLog('loadMaps: json loaded');
 
         const zones = [...(core.zones || []), ...(expansion.zones || [])];
-        const walkableBase = core.walkable || [];
+        const walkableBase = [
+            ...(core.walkable || []),
+            ...(expansion.walkable || [])
+        ];
         const walkableFromZones = extractWalkableFromZones(zones);
         const walkableFinal = [...walkableBase, ...walkableFromZones];
+        const walkableInflated = inflateWalkables(walkableFinal, 3, core.meta?.size);
         const obstaclesFinal = [
             ...(core.obstacles || []),
             ...(expansion.obstacles || [])
@@ -103,6 +107,7 @@ export async function loadMaps() {
             walkableBase,
             walkableFromZones,
             walkableFinal,
+            walkableInflated,
             walkable: walkableFinal,
             obstaclesFinal,
             obstacles: obstaclesFinal,
@@ -133,6 +138,7 @@ export async function loadMaps() {
         bootLog(`walkableBase: ${walkableBase.length}`);
         bootLog(`walkableFromZones: ${walkableFromZones.length}`);
         bootLog(`walkableFinal: ${walkableFinal.length}`);
+        bootLog(`walkableInflated: ${walkableInflated.length}`);
         bootLog(`obstaclesFinal: ${obstaclesFinal.length}`);
         bootLog('loadMaps: worldModel ready');
         return worldModel;
@@ -175,6 +181,29 @@ function extractWalkableFromZones(zones = []) {
     });
 
     return walkables;
+}
+
+function inflateWalkables(rects = [], pad = 0, size = null) {
+    if (!pad) return rects.slice();
+    const maxW = size?.w ?? Infinity;
+    const maxH = size?.h ?? Infinity;
+    return rects.map(rect => {
+        const x = rect.x - pad;
+        const y = rect.y - pad;
+        const w = rect.w + pad * 2;
+        const h = rect.h + pad * 2;
+        const clampedX = Math.max(0, x);
+        const clampedY = Math.max(0, y);
+        const clampedW = Math.min(maxW, x + w) - clampedX;
+        const clampedH = Math.min(maxH, y + h) - clampedY;
+        return {
+            ...rect,
+            x: clampedX,
+            y: clampedY,
+            w: Math.max(0, clampedW),
+            h: Math.max(0, clampedH)
+        };
+    }).filter(rect => rect.w > 0 && rect.h > 0);
 }
 
 export function getWorldModel() {

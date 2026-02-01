@@ -200,13 +200,13 @@ export function constrainPosition(x, y) {
 export function findPath(fromX, fromY, toX, toY) {
     // Direct path - if target is walkable, go there
     if (canMoveTo(toX, toY)) {
-        return { x: toX, y: toY, reason: 'direct' };
+        return { x: toX, y: toY, reason: 'direct', pathLen: Math.hypot(toX - fromX, toY - fromY) };
     }
 
     // Snap to nearest walkable point if possible
     const snap = constrainPosition(toX, toY);
     if (canMoveTo(snap.x, snap.y)) {
-        return { x: snap.x, y: snap.y, reason: 'snap' };
+        return { x: snap.x, y: snap.y, reason: 'snap', pathLen: Math.hypot(snap.x - fromX, snap.y - fromY) };
     }
 
     // Nearby search fallback, but bias toward the line from current->target (reduces sideways "slip")
@@ -247,7 +247,7 @@ export function findPath(fromX, fromY, toX, toY) {
     }
 
     if (best) {
-        return { x: best.x, y: best.y, reason: `nearby:${best.r}` };
+        return { x: best.x, y: best.y, reason: `nearby:${best.r}`, pathLen: Math.hypot(best.x - fromX, best.y - fromY) };
     }
 
     // Wider neighbor search from click point
@@ -260,13 +260,13 @@ export function findPath(fromX, fromY, toX, toY) {
             const x = toX + Math.cos(rad) * r;
             const y = toY + Math.sin(rad) * r;
             if (canMoveTo(x, y)) {
-                return { x, y, reason: `search:${r}` };
+                return { x, y, reason: `search:${r}`, pathLen: Math.hypot(x - fromX, y - fromY) };
             }
         }
     }
 
     // Last resort - stay at current position
-    return { x: fromX, y: fromY, reason: 'stuck' };
+    return { x: fromX, y: fromY, reason: 'stuck', pathLen: 0 };
 }
 
 /**
@@ -292,7 +292,7 @@ export { AVATAR_RADIUS };
 let warnedWalkableFallback = false;
 
 function getWalkables(world) {
-    const walkables = world.walkableFinal || world.walkable || [];
+    const walkables = world.walkableInflated || world.walkableFinal || world.walkable || [];
     if (walkables.length > 0) return walkables;
 
     if (world.zones && world.zones.length > 0) {
@@ -308,6 +308,22 @@ function getWalkables(world) {
         warnedWalkableFallback = true;
     }
     return [];
+}
+
+export function getNearestWalkableDistance(x, y) {
+    const world = getWorldModel();
+    if (!world) return Infinity;
+    const walkables = getWalkables(world);
+    if (!walkables || walkables.length === 0) return Infinity;
+
+    let nearest = Infinity;
+    walkables.forEach(area => {
+        const cx = Math.max(area.x, Math.min(x, area.x + area.w));
+        const cy = Math.max(area.y, Math.min(y, area.y + area.h));
+        const dist = Math.hypot(x - cx, y - cy);
+        if (dist < nearest) nearest = dist;
+    });
+    return nearest;
 }
 
 function getObstacles(world) {
