@@ -69,7 +69,10 @@ export function getNearbyDesk(x, y) {
     let closestDist = DESK_SIT_DISTANCE;
 
     for (const desk of desks) {
-        const anchor = desk.standPoint || desk.pos;
+        const anchor = desk.standPointAbs || desk.standPoint || desk.posAbs || desk.pos;
+        if (!desk.standPointAbs) {
+            console.warn('[desk] missing standPointAbs', desk.id);
+        }
         if (!anchor) continue;
         const dx = x - anchor.x;
         const dy = y - anchor.y;
@@ -104,8 +107,17 @@ export function getClickableAt(x, y) {
     // Check desks
     const desks = getDesks();
     for (const desk of desks) {
-        const dx = x - desk.pos.x;
-        const dy = y - desk.pos.y;
+        const collider = desk.boundsAbs || desk.colliderAbs;
+        if (collider) {
+            if (x >= collider.x && x <= collider.x + collider.w && y >= collider.y && y <= collider.y + collider.h) {
+                return { kind: 'desk', data: desk };
+            }
+            continue;
+        }
+        const center = desk.posAbs || desk.pos;
+        if (!center) continue;
+        const dx = x - center.x;
+        const dy = y - center.y;
         const size = 60;
 
         if (Math.abs(dx) < size / 2 && Math.abs(dy) < size / 2) {

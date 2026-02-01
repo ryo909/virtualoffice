@@ -342,6 +342,7 @@ function drawCollisionDebug(world, playerPos) {
     const deskColliders = world.deskColliders || [];
     const zones = world.zones || [];
     const spots = getSpots() || [];
+    const desks = world.desks || [];
     const moveDebug = window.__moveDebug;
     const walkDebug = window.__walkDebug;
     const debugCfg = getConfig()?.debug || {};
@@ -392,6 +393,34 @@ function drawCollisionDebug(world, playerPos) {
         deskColliders.forEach(desk => {
             ctx.fillRect(desk.x, desk.y, desk.w, desk.h);
             ctx.strokeRect(desk.x, desk.y, desk.w, desk.h);
+        });
+    }
+
+    if (showDeskColliders) {
+        desks.forEach(desk => {
+            const pos = desk.posAbs || desk.pos;
+            const stand = desk.standPointAbs || desk.standPoint;
+            const bounds = desk.boundsAbs || desk.bounds;
+
+            if (bounds) {
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+            }
+
+            if (pos) {
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (stand) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.95)';
+                ctx.beginPath();
+                ctx.arc(stand.x, stand.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
     }
 

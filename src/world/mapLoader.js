@@ -324,25 +324,25 @@ function buildDeskColliders(desks = []) {
 }
 
 function getDeskBaseRect(desk) {
-    if (desk.bounds) {
-        return { x: desk.bounds.x, y: desk.bounds.y, w: desk.bounds.w, h: desk.bounds.h };
+    if (desk.boundsAbs) {
+        return { x: desk.boundsAbs.x, y: desk.boundsAbs.y, w: desk.boundsAbs.w, h: desk.boundsAbs.h };
     }
-    if (desk.pos) {
+    if (desk.posAbs) {
         const w = furniture.desk.width;
         const h = furniture.desk.height;
         return {
-            x: desk.pos.x - w / 2,
-            y: desk.pos.y - h / 2,
+            x: desk.posAbs.x - w / 2,
+            y: desk.posAbs.y - h / 2,
             w,
             h
         };
     }
-    if (desk.standPoint) {
+    if (desk.standPointAbs) {
         const w = 120;
         const h = 90;
         return {
-            x: desk.standPoint.x - w / 2,
-            y: desk.standPoint.y + 8,
+            x: desk.standPointAbs.x - w / 2,
+            y: desk.standPointAbs.y + 8,
             w,
             h
         };
@@ -376,22 +376,47 @@ function normalizeDesks(desks = [], size) {
 
     return desks.map(desk => {
         const next = { ...desk };
-        if (desk.pos) {
-            next.pos = { x: desk.pos.x * scale, y: desk.pos.y * scale };
-        }
-        if (desk.standPoint) {
-            next.standPoint = { x: desk.standPoint.x * scale, y: desk.standPoint.y * scale };
-        }
-        if (desk.bounds) {
-            next.bounds = {
+
+        const pos = desk.pos ? { x: desk.pos.x * scale, y: desk.pos.y * scale } : null;
+        const stand = desk.standPoint ? { x: desk.standPoint.x * scale, y: desk.standPoint.y * scale } : null;
+        const bounds = desk.bounds
+            ? {
                 x: desk.bounds.x * scale,
                 y: desk.bounds.y * scale,
                 w: desk.bounds.w * scale,
                 h: desk.bounds.h * scale
-            };
-        }
+            }
+            : null;
+
+        const standIsRelative = stand && pos
+            ? Math.abs(stand.x) <= 60 && Math.abs(stand.y) <= 60
+            : false;
+        const standPointAbs = standIsRelative && pos
+            ? { x: pos.x + stand.x, y: pos.y + stand.y }
+            : stand;
+
+        const boundsIsRelative = bounds && pos
+            ? (bounds.x < 0 || bounds.y < 0 || bounds.x <= 120 || bounds.y <= 120)
+            : false;
+        const boundsAbs = boundsIsRelative && pos
+            ? { x: pos.x + bounds.x, y: pos.y + bounds.y, w: bounds.w, h: bounds.h }
+            : bounds;
+
+        next.pos = pos;
+        next.standPoint = stand;
+        next.bounds = bounds;
+        next.posAbs = pos;
+        next.standPointAbs = standPointAbs;
+        next.boundsAbs = boundsAbs;
+        next.colliderAbs = boundsAbs;
+        next.__debug = {
+            posAbs: next.posAbs,
+            standAbs: standPointAbs,
+            boundsAbs
+        };
+
         if (W && H) {
-            const pts = [next.pos, next.standPoint].filter(Boolean);
+            const pts = [next.posAbs, next.standPointAbs].filter(Boolean);
             pts.forEach(p => {
                 if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
                     console.warn('[desk] out of bounds', desk.id, p.x, p.y, W, H, desk);
