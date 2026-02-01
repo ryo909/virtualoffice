@@ -1,6 +1,6 @@
 // modal.spot.js - Spot action modals (Gallery links, Bulletin)
 
-let modalOverlay = null;
+let spotModalOverlay = null;
 let spotModal = null;
 let isVisible = false;
 
@@ -8,12 +8,15 @@ let isVisible = false;
  * Initialize spot modal (call once on app start)
  */
 export function initSpotModal() {
-    // Create modal container if not exists
-    modalOverlay = document.getElementById('modal-overlay');
+    // Create dedicated overlay for spot modal (to avoid conflicts with other modals)
+    spotModalOverlay = document.createElement('div');
+    spotModalOverlay.id = 'spot-modal-overlay';
+    spotModalOverlay.className = 'spot-modal-overlay';
+    document.getElementById('app').appendChild(spotModalOverlay);
 
     // Create spot modal element
     spotModal = document.createElement('div');
-    spotModal.className = 'modal hidden';
+    spotModal.className = 'spot-modal';
     spotModal.id = 'modal-spot';
     spotModal.innerHTML = `
         <div class="modal-header">
@@ -26,16 +29,24 @@ export function initSpotModal() {
         </div>
         <div class="modal-body" id="spot-modal-body"></div>
     `;
-    modalOverlay.appendChild(spotModal);
+    spotModalOverlay.appendChild(spotModal);
 
     // Close button handler
-    document.getElementById('spot-modal-close').addEventListener('click', hideSpotModal);
+    document.getElementById('spot-modal-close').addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideSpotModal();
+    });
 
-    // Close on overlay click
-    modalOverlay.addEventListener('click', (e) => {
-        if (e.target === modalOverlay && isVisible) {
+    // Close on overlay click (not modal itself)
+    spotModalOverlay.addEventListener('click', (e) => {
+        if (e.target === spotModalOverlay) {
             hideSpotModal();
         }
+    });
+
+    // Prevent modal clicks from propagating
+    spotModal.addEventListener('click', (e) => {
+        e.stopPropagation();
     });
 
     // Close on Escape key
@@ -106,8 +117,7 @@ export function showBulletinModal(title) {
  * Show the modal (internal)
  */
 function showModal() {
-    modalOverlay.classList.add('visible');
-    spotModal.classList.remove('hidden');
+    spotModalOverlay.classList.add('visible');
     isVisible = true;
 }
 
@@ -115,10 +125,9 @@ function showModal() {
  * Hide the spot modal
  */
 export function hideSpotModal() {
-    if (!spotModal) return;
+    if (!spotModalOverlay) return;
 
-    spotModal.classList.add('hidden');
-    modalOverlay.classList.remove('visible');
+    spotModalOverlay.classList.remove('visible');
     isVisible = false;
 }
 

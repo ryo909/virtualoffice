@@ -745,11 +745,46 @@
 }
 
 /* ========== Spot Modal ========== */
-#modal-spot .modal-header {
+.spot-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.spot-modal-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.spot-modal {
+    background: var(--color-bg);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px var(--color-shadow);
+    width: 400px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    transform: scale(0.9);
+    transition: transform 0.3s;
+}
+
+.spot-modal-overlay.visible .spot-modal {
+    transform: scale(1);
+}
+
+.spot-modal .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    position: relative;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--color-border);
 }
 
 .modal-close-btn {

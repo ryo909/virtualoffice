@@ -130,11 +130,7 @@ export async function initApp(appConfig, session) {
         if (spot?.id !== state.world.insideSpotId) {
             state.world.insideSpotId = spot?.id || null;
             updateRoomChannel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId);
-
-            // Handle action spots
-            if (spot && spot.action) {
-                handleSpotAction(spot.action);
-            }
+            // Note: Action spots are handled via click, not walk-in
         }
     });
 
@@ -374,12 +370,18 @@ export async function initApp(appConfig, session) {
         // Check if clicked on a clickable element (spot, desk, user)
         const clickable = getClickableAt(worldPos.x, worldPos.y);
 
-        if (clickable.kind) {
+        if (clickable.kind === 'spot' && clickable.data?.action) {
+            // Action spot (gallery, bulletin) - show modal
+            handleSpotAction(clickable.data.action);
+        } else if (clickable.kind) {
+            // Other clickable (zoom room, desk) - show context panel
             state.ui.selected = clickable;
             showContextPanel(clickable);
+            hideSpotModal(); // Close spot modal if open
         } else {
             state.ui.selected = null;
             hideContextPanel();
+            hideSpotModal(); // Close spot modal if open
             setMoveTarget(worldPos.x, worldPos.y);
 
             // Show click marker
