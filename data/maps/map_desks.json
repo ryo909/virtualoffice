@@ -215,6 +215,15 @@
             "walkable": true
         }
     ],
+    "walkable": [
+        {
+            "x": 208,
+            "y": 428,
+            "w": 412,
+            "h": 192,
+            "tag": "assigned_desks_floor"
+        }
+    ],
     "deskRules": {
         "initialMode": "fixed",
         "futureMode": "free",

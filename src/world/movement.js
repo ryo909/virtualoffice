@@ -57,6 +57,15 @@ export function setMoveTarget(x, y) {
     const walkableHit = isPointInAnyRect(clickPoint, walkableRects);
     const obstacleHit = isPointInAnyRect(clickPoint, obstacleRects);
     const snapped = snapPointToWalkable(clickPoint);
+    const zoneAtClick = getZoneAt(x, y);
+
+    const constrainedBecause = (() => {
+        if (!walkableHit.hit) return 'not-walkable';
+        if (obstacleHit.hit) return 'hit-obstacle';
+        const snapDist = Math.hypot(snapped.x - x, snapped.y - y);
+        if (snapDist > 0.5) return 'snap';
+        return 'ok';
+    })();
 
     console.log('[MOVE] click pre-findPath', {
         click: { x: Math.round(x), y: Math.round(y) },
@@ -65,10 +74,10 @@ export function setMoveTarget(x, y) {
     console.log(
         `[WALKDBG] click=(${Math.round(x)},${Math.round(y)}) ` +
         `inWalkable=${walkableHit.hit} inObstacle=${obstacleHit.hit} ` +
+        `zone=${zoneAtClick?.id || 'null'} constrainedBecause=${constrainedBecause} ` +
         `snapped=(${Math.round(snapped.x)},${Math.round(snapped.y)})`
     );
 
-    const zoneAtClick = getZoneAt(x, y);
     const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);
     const walkableDebug = canMoveToDebug(x, y);
     const nearestWalkableDist = getNearestWalkableDistance(x, y);
