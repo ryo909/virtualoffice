@@ -3,6 +3,7 @@
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
 import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera, applyZoom } from './world/mapRenderer.js';
 import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove } from './world/movement.js';
+import { canMoveTo } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
@@ -70,6 +71,13 @@ let lastFrameTime = 0;
 let lastActivityTime = Date.now();
 let animationFrameId = null;
 let config = null;
+
+// Debug object for coordinate verification
+const debug = {
+    lastClick: null,
+    lastWorldPos: null,
+    canMoveTo: null
+};
 
 // ========== Initialization ==========
 export async function initApp(appConfig, session) {
@@ -352,12 +360,19 @@ export async function initApp(appConfig, session) {
 
     // Canvas click handler (pointerdown for better touch support)
     const canvasContainer = document.getElementById('canvas-container');
+    // Set touch-action to prevent scroll hijacking
+    canvas.style.touchAction = 'none';
+    canvasContainer.style.touchAction = 'none';
+
     canvasContainer.addEventListener('pointerdown', (e) => {
         // Left click only
         if (e.button !== 0) return;
 
         // Skip if clicking on UI elements
         if (isUiClick(e.target)) return;
+
+        // Prevent default to avoid scroll/zoom on touch
+        e.preventDefault();
 
         lastActivityTime = Date.now();
 
@@ -366,6 +381,22 @@ export async function initApp(appConfig, session) {
         const screenY = e.clientY - rect.top;
 
         const worldPos = screenToWorld(screenX, screenY);
+
+        // Debug: Track click coordinates for verification
+        debug.lastClick = {
+            screen: { x: Math.round(screenX), y: Math.round(screenY) },
+            world: { x: Math.round(worldPos.x), y: Math.round(worldPos.y) },
+            time: Date.now()
+        };
+        debug.lastWorldPos = worldPos;
+        debug.canMoveTo = canMoveTo(worldPos.x, worldPos.y);
+
+        console.log('[Click]', {
+            screen: debug.lastClick.screen,
+            world: debug.lastClick.world,
+            canMoveTo: debug.canMoveTo,
+            camera: getCamera()
+        });
 
         // Check if clicked on a clickable element (spot, desk, user)
         const clickable = getClickableAt(worldPos.x, worldPos.y);
@@ -382,6 +413,8 @@ export async function initApp(appConfig, session) {
             state.ui.selected = null;
             hideContextPanel();
             hideSpotModal(); // Close spot modal if open
+
+            // Only move if position is valid or let movement handle constrain
             setMoveTarget(worldPos.x, worldPos.y);
 
             // Show click marker

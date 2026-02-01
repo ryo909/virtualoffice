@@ -59,19 +59,43 @@ function circleRectCollision(cx, cy, r, rect) {
 }
 
 /**
- * Get constrained position (clamp to walkable area)
+ * Get constrained position (find nearest walkable point)
+ * Searches all walkable areas and returns the closest valid point
  */
 export function constrainPosition(x, y) {
     const world = getWorldModel();
     if (!world || world.walkable.length === 0) return { x, y };
 
-    const area = world.walkable[0];
     const margin = AVATAR_RADIUS;
+    let best = null;
+    let bestDist = Infinity;
 
-    return {
-        x: Math.max(area.x + margin, Math.min(x, area.x + area.w - margin)),
-        y: Math.max(area.y + margin, Math.min(y, area.y + area.h - margin))
-    };
+    for (const area of world.walkable) {
+        // Calculate the nearest point on this walkable rect (with margin)
+        const innerX1 = area.x + margin;
+        const innerY1 = area.y + margin;
+        const innerX2 = area.x + area.w - margin;
+        const innerY2 = area.y + area.h - margin;
+
+        // Skip if area is too small to accommodate margin
+        if (innerX2 <= innerX1 || innerY2 <= innerY1) continue;
+
+        // Clamp to inner bounds
+        const cx = Math.max(innerX1, Math.min(x, innerX2));
+        const cy = Math.max(innerY1, Math.min(y, innerY2));
+
+        // Calculate distance from original point
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = dx * dx + dy * dy;
+
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = { x: cx, y: cy };
+        }
+    }
+
+    return best || { x, y };
 }
 
 /**
