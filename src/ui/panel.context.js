@@ -11,6 +11,9 @@ let onStand = null;
 let onPoke = null;
 let onDm = null;
 let onCall = null;
+let onDeskCallJoin = null;
+let onDeskCallMute = null;
+let onDeskCallHangup = null;
 
 export function initContextPanel(callbacks) {
     onOpenZoom = callbacks.openZoom;
@@ -20,13 +23,16 @@ export function initContextPanel(callbacks) {
     onPoke = callbacks.poke;
     onDm = callbacks.dm;
     onCall = callbacks.call;
+    onDeskCallJoin = callbacks.deskCallJoin;
+    onDeskCallMute = callbacks.deskCallMute;
+    onDeskCallHangup = callbacks.deskCallHangup;
 }
 
 export async function loadRoomSettings() {
     roomSettings = await getRoomSettings();
 }
 
-export function showContextPanel(selection) {
+export function showContextPanel(selection, meta = {}) {
     const panel = document.getElementById('context-panel');
     const title = document.getElementById('context-title');
     const actions = document.getElementById('context-actions');
@@ -41,7 +47,7 @@ export function showContextPanel(selection) {
     if (kind === 'spot') {
         showSpotPanel(data, title, actions);
     } else if (kind === 'desk') {
-        showDeskPanel(data, title, actions);
+        showDeskPanel(data, title, actions, meta);
     } else if (kind === 'user') {
         showUserPanel(data, title, actions);
     } else {
@@ -93,13 +99,26 @@ function showSpotPanel(spot, title, actions) {
     }
 }
 
-function showDeskPanel(desk, title, actions, seated = false, occupant = null) {
+function showDeskPanel(desk, title, actions, meta = {}) {
+    const seated = meta.seated === true;
+    const occupant = meta.occupant || null;
+    const callState = meta.callState || {};
+    const callStatus = callState.status || 'idle';
+    const inCall = callStatus === 'in_call' || callStatus === 'connecting';
+
     title.textContent = `Desk ${desk.id.replace('desk:', '')}`;
 
     let html = '';
 
     if (seated) {
         // Currently seated
+        html += `<div class="context-status">📞 Call: ${callStatus}</div>`;
+        if (!inCall) {
+            html += `<button class="btn btn-primary" id="ctx-join-call">📞 通話に参加</button>`;
+        } else {
+            html += `<button class="btn btn-secondary" id="ctx-mute-call">${callState.muted ? '🔈 Unmute' : '🔇 Mute'}</button>`;
+            html += `<button class="btn btn-secondary" id="ctx-hangup-call">⏹ Hang up</button>`;
+        }
         html += `<button class="btn btn-secondary" id="ctx-stand">🚶 Stand</button>`;
     } else if (occupant) {
         // Someone else is sitting here
@@ -121,6 +140,9 @@ function showDeskPanel(desk, title, actions, seated = false, occupant = null) {
     document.getElementById('ctx-dm')?.addEventListener('click', () => onDm?.(occupant));
     document.getElementById('ctx-poke')?.addEventListener('click', () => onPoke?.(occupant));
     document.getElementById('ctx-call')?.addEventListener('click', () => onCall?.(occupant));
+    document.getElementById('ctx-join-call')?.addEventListener('click', () => onDeskCallJoin?.(desk));
+    document.getElementById('ctx-mute-call')?.addEventListener('click', () => onDeskCallMute?.());
+    document.getElementById('ctx-hangup-call')?.addEventListener('click', () => onDeskCallHangup?.());
 }
 
 function showUserPanel(user, title, actions) {
@@ -146,11 +168,11 @@ export function hideContextPanel() {
     }
 }
 
-export function updateDeskPanel(desk, seated, occupant) {
+export function updateDeskPanel(desk, seated, occupant, callState) {
     const title = document.getElementById('context-title');
     const actions = document.getElementById('context-actions');
 
     if (title && actions) {
-        showDeskPanel(desk, title, actions, seated, occupant);
+        showDeskPanel(desk, title, actions, { seated, occupant, callState });
     }
 }

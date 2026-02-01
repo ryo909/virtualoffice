@@ -96,6 +96,12 @@ export function setMoveTarget(x, y) {
     const walkableDebug = canMoveToDebug(x, y);
     const nearestWalkableDist = getNearestWalkableDistance(x, y);
 
+    if (!obstacleHit.hit && walkableDebug?.reason === 'hit_obstacle') {
+        const tag = String(walkableDebug.obstacle || 'unknown');
+        const kind = tag.toLowerCase().includes('desk') ? 'desk' : 'world';
+        console.log(`[WALKDBG] blockedBy=${kind} id=${tag}`);
+    }
+
     // Use findPath which includes nearby search and returns reason
     const pathResult = findPath(currentPos.x, currentPos.y, x, y);
     lastPathResult = pathResult;

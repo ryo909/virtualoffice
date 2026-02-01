@@ -30,7 +30,7 @@ import { initSettingsDrawer, applyTheme, setDisplayNameInput, setActiveStatus, s
 import { initPasswordModal, showPasswordModal, hidePasswordModal } from './ui/modal.password.js';
 import { initNameplateModal, showNameplateModal, hideNameplateModal, showNameplateError } from './ui/modal.nameplate.js';
 import { initIncomingCallModal, showIncomingCallModal, hideIncomingCallModal } from './ui/modal.incomingCall.js';
-import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings } from './ui/panel.context.js';
+import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings, updateDeskPanel } from './ui/panel.context.js';
 import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, isSpotModalVisible } from './ui/modal.spot.js';
 import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } from './ui/modal.admin.js';
 import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
@@ -38,6 +38,13 @@ import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
 import { initWebRTC } from './call/webrtc.js';
+import {
+    initDeskCall,
+    joinDeskCall,
+    leaveDeskCall,
+    toggleDeskMute,
+    hangupDeskCall
+} from './call/deskCall.js';
 
 import { getSessionId, setSessionId, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId } from './utils/storage.js';
 import { generateSessionId } from './utils/ids.js';
@@ -86,6 +93,7 @@ let lastFrameTime = 0;
 let lastActivityTime = Date.now();
 let animationFrameId = null;
 let config = null;
+let deskCallState = { status: 'idle' };
 
 // Debug object for coordinate verification
 const debug = {
@@ -266,13 +274,19 @@ export async function initApp(appConfig, session) {
             openDrawer('chat');
         },
         sit: (desk) => {
+            if (state.world.seatedDeskId && state.world.seatedDeskId !== desk.id) {
+                leaveDeskCall();
+            }
             state.world.seatedDeskId = desk.id;
             teleportTo(desk.standPoint.x, desk.standPoint.y);
             hideContextPanel();
+            refreshDeskPanel();
         },
         stand: () => {
             state.world.seatedDeskId = null;
+            leaveDeskCall();
             hideContextPanel();
+            refreshDeskPanel();
         },
         poke: (person) => {
             sendPoke(person.actorId);
@@ -283,8 +297,39 @@ export async function initApp(appConfig, session) {
         },
         call: (person) => {
             startCall(person.actorId);
+        },
+        deskCallJoin: (desk) => {
+            joinDeskCall(desk.id);
+            refreshDeskPanel();
+        },
+        deskCallMute: () => {
+            toggleDeskMute();
+            refreshDeskPanel();
+        },
+        deskCallHangup: () => {
+            hangupDeskCall();
+            refreshDeskPanel();
         }
     });
+
+    function buildContextMeta(selection) {
+        if (selection?.kind !== 'desk') return {};
+        return {
+            seated: state.world.seatedDeskId === selection.data.id,
+            callState: deskCallState
+        };
+    }
+
+    function refreshDeskPanel() {
+        const selection = state.ui.selected;
+        if (selection?.kind !== 'desk') return;
+        updateDeskPanel(
+            selection.data,
+            state.world.seatedDeskId === selection.data.id,
+            null,
+            deskCallState
+        );
+    }
 
     initIncomingCallModal({
         acceptCallback: async () => {
@@ -340,6 +385,14 @@ export async function initApp(appConfig, session) {
     });
 
     initSignaling({ actorId: state.me.actorId });
+
+    initDeskCall({
+        sessionId: state.me.actorId,
+        onStateChange: (nextState) => {
+            deskCallState = nextState;
+            refreshDeskPanel();
+        }
+    });
 
     // Initialize realtime
     initRealtime({
@@ -436,7 +489,7 @@ export async function initApp(appConfig, session) {
         } else if (clickable.kind) {
             // Other clickable (zoom room, desk) - show context panel
             state.ui.selected = clickable;
-            showContextPanel(clickable);
+            showContextPanel(clickable, buildContextMeta(clickable));
             hideSpotModal(); // Close spot modal if open
         } else {
             state.ui.selected = null;

@@ -26,9 +26,9 @@
     "drawWorldObstacles": true
   },
   "collision": {
-    "deskInsetX": 12,
-    "deskClipTop": 22,
-    "deskInsetBottom": 8
+    "deskWidthRatio": 0.6,
+    "deskHeightRatio": 0.45,
+    "deskYOffsetRatio": 0.18
   },
   "webrtc": {
     "iceServers": [

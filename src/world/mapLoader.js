@@ -287,24 +287,27 @@ function getDeskColliderConfig() {
     const cfg = getConfig();
     const collision = cfg?.collision || {};
     return {
-        insetX: Number.isFinite(collision.deskInsetX) ? collision.deskInsetX : 12,
-        clipTop: Number.isFinite(collision.deskClipTop) ? collision.deskClipTop : 22,
-        insetBottom: Number.isFinite(collision.deskInsetBottom) ? collision.deskInsetBottom : 8
+        deskWidthRatio: Number.isFinite(collision.deskWidthRatio) ? collision.deskWidthRatio : 0.6,
+        deskHeightRatio: Number.isFinite(collision.deskHeightRatio) ? collision.deskHeightRatio : 0.45,
+        deskYOffsetRatio: Number.isFinite(collision.deskYOffsetRatio) ? collision.deskYOffsetRatio : 0.18
     };
 }
 
 function buildDeskColliders(desks = []) {
-    const { insetX, clipTop, insetBottom } = getDeskColliderConfig();
-    const w = furniture.desk.width;
-    const h = furniture.desk.height;
+    const { deskWidthRatio, deskHeightRatio, deskYOffsetRatio } = getDeskColliderConfig();
+    const deskW = furniture.desk.width;
+    const deskH = furniture.desk.height;
+    const colliderW = Math.max(1, deskW * deskWidthRatio);
+    const colliderH = Math.max(1, deskH * deskHeightRatio);
+    const yOffset = deskH * deskYOffsetRatio;
 
     return desks.map(desk => {
-        const baseX = desk.pos.x - w / 2;
-        const baseY = desk.pos.y - h / 2;
-        const x = baseX + insetX;
-        const y = baseY + clipTop;
-        const width = Math.max(1, w - insetX * 2);
-        const height = Math.max(1, h - (clipTop + insetBottom));
+        const baseX = desk.pos.x - deskW / 2;
+        const baseY = desk.pos.y - deskH / 2;
+        const x = baseX + (deskW - colliderW) / 2;
+        const y = baseY + yOffset;
+        const width = colliderW;
+        const height = colliderH;
         return {
             x,
             y,
