@@ -185,12 +185,6 @@ export function findPath(fromX, fromY, toX, toY) {
         return { x: toX, y: toY, reason: 'direct' };
     }
 
-    // Try nearest safe walkable point first (stabilizes behavior near obstacles)
-    const base = constrainPosition(toX, toY);
-    if (canMoveTo(base.x, base.y)) {
-        return { x: base.x, y: base.y, reason: 'constrained' };
-    }
-
     // Nearby search fallback, but bias toward the line from current->target (reduces sideways "slip")
     const radii = [24, 48, 72, 96, 120];
     let best = null;
@@ -239,8 +233,8 @@ export function findPath(fromX, fromY, toX, toY) {
     for (let r = STEP; r <= MAX_R; r += STEP) {
         for (let a = 0; a < 360; a += 30) {
             const rad = (a * Math.PI) / 180;
-            const x = base.x + Math.cos(rad) * r;
-            const y = base.y + Math.sin(rad) * r;
+            const x = toX + Math.cos(rad) * r;
+            const y = toY + Math.sin(rad) * r;
             if (canMoveTo(x, y)) {
                 return { x, y, reason: `search:${r}` };
             }

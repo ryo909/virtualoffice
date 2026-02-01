@@ -1,6 +1,6 @@
 // movement.js - Avatar movement handling
 
-import { canMoveTo, canMoveToDebug, constrainPosition, findPath, AVATAR_RADIUS } from './collision.js';
+import { canMoveTo, canMoveToDebug, constrainPosition, findPath, getZoneAt, AVATAR_RADIUS } from './collision.js';
 import { getWorldModel } from './mapLoader.js';
 
 const MOVE_SPEED = 160; // pixels per second
@@ -39,6 +39,15 @@ export function setMoveTarget(x, y) {
         console.warn('[MOVE] No world model!');
         return;
     }
+
+    const zoneAtClick = getZoneAt(x, y);
+    const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);
+    console.log('[MOVE] click debug', {
+        clicked: { x: Math.round(x), y: Math.round(y) },
+        isWalkable: canMoveTo(x, y),
+        zoneAt: zoneAtClick?.id || null,
+        currentZone: zoneAtCurrent?.id || null
+    });
 
     // For debugging: skip collision check if DEBUG_COLLISION is true
     if (DEBUG_COLLISION) {
