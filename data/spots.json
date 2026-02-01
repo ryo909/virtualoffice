@@ -76,6 +76,19 @@
                 "type": "openBulletin",
                 "title": "News Wall"
             }
+        },
+        {
+            "id": "spot:admin",
+            "kind": "action_spot",
+            "label": "Admin",
+            "zoneId": "area:lobby",
+            "x": 320,
+            "y": 85,
+            "r": 40,
+            "action": {
+                "type": "openAdmin"
+            },
+            "proximity": 80
         }
     ]
 }

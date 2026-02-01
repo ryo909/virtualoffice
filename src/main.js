@@ -24,6 +24,8 @@ import { initNameplateModal, showNameplateModal, hideNameplateModal, showNamepla
 import { initIncomingCallModal, showIncomingCallModal, hideIncomingCallModal } from './ui/modal.incomingCall.js';
 import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings } from './ui/panel.context.js';
 import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, isSpotModalVisible } from './ui/modal.spot.js';
+import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } from './ui/modal.admin.js';
+import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
 
 import { initChatLogic, updateRoomChannel, sendChatMessage, addDmChannel } from './chat/chatLogic.js';
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
@@ -270,6 +272,11 @@ export async function initApp(appConfig, session) {
 
     // Initialize spot modal
     initSpotModal();
+    initAdminModal();
+
+    // Load dynamic content
+    loadGallery();
+    loadNews();
 
     // Initialize call modules
     initCallStateMachine((callState, prevState) => {
@@ -404,8 +411,8 @@ export async function initApp(appConfig, session) {
         const clickable = getClickableAt(worldPos.x, worldPos.y);
 
         if (clickable.kind === 'spot' && clickable.data?.action) {
-            // Action spot (gallery, bulletin) - show modal
-            handleSpotAction(clickable.data.action);
+            // Action spot (gallery, bulletin, admin) - show modal
+            handleSpotAction(clickable.data.action, clickable.data);
         } else if (clickable.kind) {
             // Other clickable (zoom room, desk) - show context panel
             state.ui.selected = clickable;
@@ -655,15 +662,41 @@ function handleEvent(event) {
  * Handle action spot interactions
  * @param {object} action - The spot action configuration
  */
-function handleSpotAction(action) {
+function handleSpotAction(action, spot) {
     if (!action || !action.type) return;
 
     switch (action.type) {
         case 'openToolLinks':
-            showToolLinksModal(action.title || 'Tools', action.links || []);
+            // Use contentLoader gallery data instead of action.links
+            const gallery = getGallery();
+            const links = gallery?.items?.map(item => ({
+                label: item.title,
+                url: item.url,
+                desc: item.desc
+            })) || action.links || [];
+            showToolLinksModal(action.title || 'Tools', links);
             break;
         case 'openBulletin':
-            showBulletinModal(action.title || 'Bulletin');
+            // Use contentLoader news data
+            const news = getNews();
+            showBulletinModal(action.title || 'Bulletin', news?.items || []);
+            break;
+        case 'openAdmin':
+            // Proximity check: only open if avatar is close
+            const proximity = spot?.proximity || 80;
+            const avatarPos = getCurrentPos();
+            const spotX = spot?.x || 320;
+            const spotY = spot?.y || 85;
+            const dx = avatarPos.x - spotX;
+            const dy = avatarPos.y - spotY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance <= proximity) {
+                showAdminModal();
+            } else {
+                console.log('[Main] Admin spot too far:', distance, 'px (max:', proximity, ')');
+                showToast('近づいてからクリックしてください');
+            }
             break;
         default:
             console.log('[Main] Unknown spot action type:', action.type);
