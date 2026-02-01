@@ -140,27 +140,27 @@
         },
         {
             "type": "rect",
-            "x": 35,
-            "y": 260,
-            "w": 120,
-            "h": 55,
-            "tag": "bulletin_board"
+            "x": 10,
+            "y": 220,
+            "w": 140,
+            "h": 70,
+            "tag": "obs_news_board"
         },
         {
             "type": "rect",
-            "x": 160,
-            "y": 255,
-            "w": 42,
-            "h": 92,
-            "tag": "bulletin_screen"
+            "x": 150,
+            "y": 230,
+            "w": 30,
+            "h": 90,
+            "tag": "obs_news_kiosk"
         },
         {
             "type": "rect",
-            "x": 45,
-            "y": 338,
-            "w": 150,
-            "h": 22,
-            "tag": "bulletin_bench"
+            "x": 20,
+            "y": 315,
+            "w": 145,
+            "h": 25,
+            "tag": "obs_news_bench"
         },
         {
             "type": "rect",
@@ -196,43 +196,51 @@
         },
         {
             "type": "rect",
-            "x": 468,
-            "y": 270,
-            "w": 38,
-            "h": 38,
-            "tag": "gallery_pedestal_1"
+            "x": 520,
+            "y": 230,
+            "w": 35,
+            "h": 55,
+            "tag": "obs_gallery_ped_1"
         },
         {
             "type": "rect",
-            "x": 572,
-            "y": 270,
-            "w": 38,
-            "h": 38,
-            "tag": "gallery_pedestal_2"
+            "x": 580,
+            "y": 230,
+            "w": 35,
+            "h": 55,
+            "tag": "obs_gallery_ped_2"
         },
         {
             "type": "rect",
-            "x": 468,
-            "y": 365,
-            "w": 38,
-            "h": 38,
-            "tag": "gallery_pedestal_3"
+            "x": 520,
+            "y": 350,
+            "w": 35,
+            "h": 55,
+            "tag": "obs_gallery_ped_3"
         },
         {
             "type": "rect",
-            "x": 572,
-            "y": 365,
-            "w": 38,
-            "h": 38,
-            "tag": "gallery_pedestal_4"
+            "x": 580,
+            "y": 350,
+            "w": 35,
+            "h": 55,
+            "tag": "obs_gallery_ped_4"
         },
         {
             "type": "rect",
-            "x": 490,
-            "y": 412,
-            "w": 120,
-            "h": 25,
-            "tag": "gallery_bench"
+            "x": 505,
+            "y": 200,
+            "w": 115,
+            "h": 23,
+            "tag": "obs_gallery_bench_top"
+        },
+        {
+            "type": "rect",
+            "x": 505,
+            "y": 420,
+            "w": 115,
+            "h": 23,
+            "tag": "obs_gallery_bench_bottom"
         },
         {
             "type": "rect",
