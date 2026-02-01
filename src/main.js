@@ -22,6 +22,7 @@ import { initPasswordModal, showPasswordModal, hidePasswordModal } from './ui/mo
 import { initNameplateModal, showNameplateModal, hideNameplateModal, showNameplateError } from './ui/modal.nameplate.js';
 import { initIncomingCallModal, showIncomingCallModal, hideIncomingCallModal } from './ui/modal.incomingCall.js';
 import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings } from './ui/panel.context.js';
+import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, isSpotModalVisible } from './ui/modal.spot.js';
 
 import { initChatLogic, updateRoomChannel, sendChatMessage, addDmChannel } from './chat/chatLogic.js';
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
@@ -129,6 +130,11 @@ export async function initApp(appConfig, session) {
         if (spot?.id !== state.world.insideSpotId) {
             state.world.insideSpotId = spot?.id || null;
             updateRoomChannel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId);
+
+            // Handle action spots
+            if (spot && spot.action) {
+                handleSpotAction(spot.action);
+            }
         }
     });
 
@@ -257,6 +263,9 @@ export async function initApp(appConfig, session) {
             hangUp();
         }
     });
+
+    // Initialize spot modal
+    initSpotModal();
 
     // Initialize call modules
     initCallStateMachine((callState, prevState) => {
@@ -600,6 +609,25 @@ function handleEvent(event) {
     if (type === 'poke') {
         const sender = getPeople().get(fromActorId);
         showPokeToast(sender?.displayName || fromDisplayName || 'Someone');
+    }
+}
+
+/**
+ * Handle action spot interactions
+ * @param {object} action - The spot action configuration
+ */
+function handleSpotAction(action) {
+    if (!action || !action.type) return;
+
+    switch (action.type) {
+        case 'openToolLinks':
+            showToolLinksModal(action.title || 'Tools', action.links || []);
+            break;
+        case 'openBulletin':
+            showBulletinModal(action.title || 'Bulletin');
+            break;
+        default:
+            console.log('[Main] Unknown spot action type:', action.type);
     }
 }
 

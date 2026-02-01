@@ -18,6 +18,10 @@ let camera = { x: 0, y: 0, zoom: 1 };
 let canvasSize = { w: 0, h: 0 };
 let resizeObserver = null;
 
+// Background image
+let backgroundImage = null;
+let backgroundLoaded = false;
+
 // Zoom limits
 const MIN_ZOOM = 0.65;
 const MAX_ZOOM = 1.6;
@@ -40,6 +44,9 @@ export async function initRenderer(canvasElement) {
     ctx = canvas.getContext('2d');
     container = document.getElementById('canvas-container');
 
+    // Load background image
+    await loadMapBackground();
+
     // Initial resize (twice for layout settle)
     resizeCanvasToContainer();
     await raf();
@@ -55,6 +62,26 @@ export async function initRenderer(canvasElement) {
     resizeObserver.observe(container);
 
     return { canvas, ctx };
+}
+
+/**
+ * Load the background map image
+ */
+async function loadMapBackground() {
+    return new Promise((resolve) => {
+        backgroundImage = new Image();
+        backgroundImage.onload = () => {
+            backgroundLoaded = true;
+            console.log('[MapRenderer] Background image loaded:', backgroundImage.width, 'x', backgroundImage.height);
+            resolve();
+        };
+        backgroundImage.onerror = (err) => {
+            console.warn('[MapRenderer] Failed to load background image, using fallback:', err);
+            backgroundLoaded = false;
+            resolve();
+        };
+        backgroundImage.src = './assets/maps/map.png';
+    });
 }
 
 /**
@@ -211,9 +238,8 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     const world = getWorldModel();
     if (!world) return;
 
-    // === Layer 0: Clear with global floor color ===
-    const globalPattern = getPattern(ctx, 'walkway');
-    ctx.fillStyle = globalPattern || '#e8e4dc';
+    // === Layer 0: Clear canvas ===
+    ctx.fillStyle = '#2a2520';
     ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
 
     ctx.save();
@@ -225,54 +251,56 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x, -camera.y);
 
-    // === Layer 1: Global Floor (walkway pattern) ===
-    ctx.fillStyle = globalPattern || '#e8e4dc';
-    ctx.fillRect(0, 0, world.size.w, world.size.h);
-
-    // === Layer 2: Zones as Buildings ===
-    world.zones.forEach(zone => {
-        const isMeeting = zone.id.includes('meeting');
-        drawZoneBuilding(ctx, zone, isMeeting);
-    });
-
-    // === Layer 3: Expansion Rooms ===
-    if (world.rooms) {
-        world.rooms.forEach(room => {
-            drawExpansionRoom(ctx, room);
-        });
+    // === Layer 1: Background Image ===
+    if (backgroundLoaded && backgroundImage) {
+        // Draw background at world origin (0,0), sized to the world
+        ctx.drawImage(backgroundImage, 0, 0, world.size.w, world.size.h);
+    } else {
+        // Fallback: solid color
+        ctx.fillStyle = '#e8e4dc';
+        ctx.fillRect(0, 0, world.size.w, world.size.h);
     }
 
-    // === Layer 4: Obstacles/Walls ===
-    drawObstaclesPixel(world.obstacles);
+    // === Layer 2: Action Spots visualization (optional, for debugging) ===
+    // drawActionSpots();
 
-    // === Layer 5: Decor (auto-generated) ===
-    const decorItems = generateAllDecor(world.zones);
-    drawDecorItems(ctx, decorItems);
-
-    // === Layer 6: Spots (meeting rooms with furniture) ===
-    drawSpotsPixel();
-
-    // === Layer 7: Desks ===
-    drawDesksPixel();
-
-    // === Layer 8: Click marker ===
+    // === Layer 3: Click marker ===
     if (clickMarker) {
         drawClickMarkerPixel(clickMarker.x, clickMarker.y, clickMarkerTime);
     }
 
-    // === Layer 9: Other players (pixel avatars) ===
+    // === Layer 4: Other players (pixel avatars) ===
     otherPlayers.forEach(player => {
         const state = getAnimationState(player.actorId || player.displayName);
         renderPixelAvatar(ctx, player.pos.x, player.pos.y, player.displayName, state, camera.zoom, false);
         renderNameTag(ctx, player.pos.x, player.pos.y, player.displayName, player.status, camera.zoom);
     });
 
-    // === Layer 10: Current player (pixel avatar) ===
+    // === Layer 5: Current player (pixel avatar) ===
     const playerState = getAnimationState(me.actorId || 'me');
     renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
     renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
 
     ctx.restore();
+}
+
+/**
+ * Draw action spots for debugging (optional)
+ */
+function drawActionSpots() {
+    const spots = getSpots();
+    spots.forEach(spot => {
+        if (spot.x !== undefined && spot.y !== undefined && spot.r !== undefined) {
+            // Circle-based spot
+            ctx.beginPath();
+            ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    });
 }
 
 /**

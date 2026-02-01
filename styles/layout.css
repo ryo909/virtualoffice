@@ -743,3 +743,94 @@
     width: 100%;
     height: 100%;
 }
+
+/* ========== Spot Modal ========== */
+#modal-spot .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.modal-close-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--color-textSecondary);
+    transition: all 0.2s;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.modal-close-btn:hover {
+    background: var(--color-bgSecondary);
+    color: var(--color-text);
+}
+
+.spot-links-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.spot-link-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--color-bgSecondary);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--color-text);
+    font-weight: 500;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.spot-link-item:hover {
+    background: var(--color-bgTertiary);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.spot-link-label {
+    flex: 1;
+}
+
+.spot-link-icon {
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.spot-link-item:hover .spot-link-icon {
+    opacity: 1;
+}
+
+.bulletin-content {
+    min-height: 200px;
+}
+
+.bulletin-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--color-textMuted);
+}
+
+.bulletin-placeholder p {
+    margin-top: 16px;
+    font-size: 14px;
+}
+
+.bulletin-hint {
+    font-size: 12px;
+    opacity: 0.6;
+    margin-top: 4px;
+}

@@ -1,145 +1,437 @@
 {
     "meta": {
         "id": "map:core",
-        "version": 1,
+        "version": 2,
         "size": {
-            "w": 2400,
-            "h": 1400
+            "w": 640,
+            "h": 640
         },
-        "styleHint": "gather-like layout; google-office creative vibe; clean, airy; not pixel-art mandatory",
+        "styleHint": "top-down, cozy premium creative office, warm wood + light tile corridors, clean and readable zones",
         "notes": [
-            "Lobby near meeting rooms and common table (relative position fixed).",
-            "Expansion areas are intentionally spacious."
+            "v0.2: walkable is split into multiple rectangles (rooms + corridors).",
+            "obstacles are mainly furniture footprints. Fine-tuning expected.",
+            "Size updated to 640x640 to match actual map image."
         ]
     },
     "spawnPoints": {
         "lobby": {
-            "x": 400,
-            "y": 500
+            "x": 320,
+            "y": 115
         }
     },
     "walkable": [
         {
             "type": "rect",
-            "x": 80,
-            "y": 120,
-            "w": 2240,
-            "h": 1180
+            "x": 22,
+            "y": 22,
+            "w": 220,
+            "h": 155,
+            "tag": "meetingA_room"
+        },
+        {
+            "type": "rect",
+            "x": 398,
+            "y": 22,
+            "w": 220,
+            "h": 155,
+            "tag": "meetingB_room"
+        },
+        {
+            "type": "rect",
+            "x": 250,
+            "y": 22,
+            "w": 140,
+            "h": 155,
+            "tag": "lobby_room"
+        },
+        {
+            "type": "rect",
+            "x": 295,
+            "y": 50,
+            "w": 50,
+            "h": 140,
+            "tag": "corridor_vertical_top"
+        },
+        {
+            "type": "rect",
+            "x": 22,
+            "y": 165,
+            "w": 596,
+            "h": 75,
+            "tag": "corridor_horizontal_mid"
+        },
+        {
+            "type": "rect",
+            "x": 295,
+            "y": 240,
+            "w": 50,
+            "h": 118,
+            "tag": "corridor_vertical_mid"
+        },
+        {
+            "type": "rect",
+            "x": 22,
+            "y": 240,
+            "w": 220,
+            "h": 190,
+            "tag": "bulletin_area"
+        },
+        {
+            "type": "rect",
+            "x": 398,
+            "y": 240,
+            "w": 220,
+            "h": 190,
+            "tag": "gallery_area"
+        },
+        {
+            "type": "rect",
+            "x": 210,
+            "y": 220,
+            "w": 220,
+            "h": 210,
+            "tag": "collab_lounge_area"
+        },
+        {
+            "type": "rect",
+            "x": 22,
+            "y": 430,
+            "w": 220,
+            "h": 188,
+            "tag": "cafeteria_area"
+        },
+        {
+            "type": "rect",
+            "x": 210,
+            "y": 430,
+            "w": 408,
+            "h": 188,
+            "tag": "desks_area"
         }
     ],
     "obstacles": [
         {
             "type": "rect",
-            "x": 60,
-            "y": 100,
-            "w": 2280,
-            "h": 30,
-            "tag": "wall_top"
+            "x": 70,
+            "y": 72,
+            "w": 115,
+            "h": 52,
+            "tag": "meetingA_table"
         },
         {
             "type": "rect",
-            "x": 60,
-            "y": 1300,
-            "w": 2280,
-            "h": 30,
-            "tag": "wall_bottom"
+            "x": 468,
+            "y": 68,
+            "w": 92,
+            "h": 92,
+            "tag": "meetingB_round_table"
         },
         {
             "type": "rect",
-            "x": 60,
-            "y": 100,
-            "w": 30,
-            "h": 1230,
-            "tag": "wall_left"
+            "x": 305,
+            "y": 50,
+            "w": 80,
+            "h": 50,
+            "tag": "lobby_reception_counter"
         },
         {
             "type": "rect",
-            "x": 2310,
-            "y": 100,
-            "w": 30,
-            "h": 1230,
-            "tag": "wall_right"
+            "x": 380,
+            "y": 35,
+            "w": 65,
+            "h": 42,
+            "tag": "lobby_directory_board"
+        },
+        {
+            "type": "rect",
+            "x": 35,
+            "y": 260,
+            "w": 120,
+            "h": 55,
+            "tag": "bulletin_board"
+        },
+        {
+            "type": "rect",
+            "x": 160,
+            "y": 255,
+            "w": 42,
+            "h": 92,
+            "tag": "bulletin_screen"
+        },
+        {
+            "type": "rect",
+            "x": 45,
+            "y": 338,
+            "w": 150,
+            "h": 22,
+            "tag": "bulletin_bench"
+        },
+        {
+            "type": "rect",
+            "x": 232,
+            "y": 268,
+            "w": 95,
+            "h": 85,
+            "tag": "lounge_long_worktable"
+        },
+        {
+            "type": "rect",
+            "x": 335,
+            "y": 295,
+            "w": 78,
+            "h": 78,
+            "tag": "lounge_round_table"
+        },
+        {
+            "type": "rect",
+            "x": 308,
+            "y": 245,
+            "w": 115,
+            "h": 45,
+            "tag": "lounge_sofa_top"
+        },
+        {
+            "type": "rect",
+            "x": 300,
+            "y": 365,
+            "w": 130,
+            "h": 42,
+            "tag": "lounge_sofa_bottom"
+        },
+        {
+            "type": "rect",
+            "x": 468,
+            "y": 270,
+            "w": 38,
+            "h": 38,
+            "tag": "gallery_pedestal_1"
+        },
+        {
+            "type": "rect",
+            "x": 572,
+            "y": 270,
+            "w": 38,
+            "h": 38,
+            "tag": "gallery_pedestal_2"
+        },
+        {
+            "type": "rect",
+            "x": 468,
+            "y": 365,
+            "w": 38,
+            "h": 38,
+            "tag": "gallery_pedestal_3"
+        },
+        {
+            "type": "rect",
+            "x": 572,
+            "y": 365,
+            "w": 38,
+            "h": 38,
+            "tag": "gallery_pedestal_4"
+        },
+        {
+            "type": "rect",
+            "x": 490,
+            "y": 412,
+            "w": 120,
+            "h": 25,
+            "tag": "gallery_bench"
+        },
+        {
+            "type": "rect",
+            "x": 35,
+            "y": 450,
+            "w": 185,
+            "h": 75,
+            "tag": "cafeteria_counter"
+        },
+        {
+            "type": "rect",
+            "x": 32,
+            "y": 538,
+            "w": 68,
+            "h": 68,
+            "tag": "cafeteria_table_1"
+        },
+        {
+            "type": "rect",
+            "x": 112,
+            "y": 538,
+            "w": 68,
+            "h": 68,
+            "tag": "cafeteria_table_2"
+        },
+        {
+            "type": "rect",
+            "x": 32,
+            "y": 610,
+            "w": 68,
+            "h": 28,
+            "tag": "cafeteria_table_3"
+        },
+        {
+            "type": "rect",
+            "x": 258,
+            "y": 490,
+            "w": 110,
+            "h": 135,
+            "tag": "desk_island_left"
+        },
+        {
+            "type": "rect",
+            "x": 380,
+            "y": 490,
+            "w": 110,
+            "h": 135,
+            "tag": "desk_island_mid"
+        },
+        {
+            "type": "rect",
+            "x": 502,
+            "y": 490,
+            "w": 110,
+            "h": 135,
+            "tag": "desk_island_right"
         }
     ],
     "zones": [
         {
-            "id": "area:lobby",
-            "label": "Lobby",
+            "id": "area:meetingA",
+            "label": "Meeting Room A",
             "bounds": {
-                "x": 120,
-                "y": 160,
-                "w": 520,
-                "h": 260
+                "x": 22,
+                "y": 22,
+                "w": 220,
+                "h": 155
             }
         },
         {
-            "id": "area:meeting",
-            "label": "Meeting",
+            "id": "area:lobby",
+            "label": "Lobby / Reception",
             "bounds": {
-                "x": 720,
-                "y": 150,
-                "w": 980,
-                "h": 360
+                "x": 250,
+                "y": 22,
+                "w": 140,
+                "h": 155
+            }
+        },
+        {
+            "id": "area:meetingB",
+            "label": "Meeting Room B",
+            "bounds": {
+                "x": 398,
+                "y": 22,
+                "w": 220,
+                "h": 155
+            }
+        },
+        {
+            "id": "area:bulletin",
+            "label": "Bulletin / News Wall",
+            "bounds": {
+                "x": 22,
+                "y": 240,
+                "w": 220,
+                "h": 190
+            }
+        },
+        {
+            "id": "area:lounge",
+            "label": "Collaboration Lounge",
+            "bounds": {
+                "x": 210,
+                "y": 220,
+                "w": 220,
+                "h": 210
+            }
+        },
+        {
+            "id": "area:gallery",
+            "label": "Gallery",
+            "bounds": {
+                "x": 398,
+                "y": 240,
+                "w": 220,
+                "h": 190
+            }
+        },
+        {
+            "id": "area:cafe",
+            "label": "Cafeteria",
+            "bounds": {
+                "x": 22,
+                "y": 430,
+                "w": 220,
+                "h": 188
             }
         },
         {
             "id": "area:desks",
-            "label": "Desks",
+            "label": "Assigned Desks",
             "bounds": {
-                "x": 720,
-                "y": 560,
-                "w": 980,
-                "h": 720
-            }
-        },
-        {
-            "id": "area:expansion_left",
-            "label": "Studio",
-            "bounds": {
-                "x": 120,
-                "y": 480,
-                "w": 520,
-                "h": 800
-            }
-        },
-        {
-            "id": "area:expansion_right",
-            "label": "Lounge",
-            "bounds": {
-                "x": 1740,
-                "y": 150,
-                "w": 520,
-                "h": 1130
+                "x": 210,
+                "y": 430,
+                "w": 408,
+                "h": 188
             }
         }
     ],
     "decor": [
         {
             "type": "label",
-            "x": 160,
-            "y": 200,
-            "text": "Lobby",
-            "style": "h1"
+            "x": 38,
+            "y": 32,
+            "text": "Meeting Room A",
+            "style": "h2"
         },
         {
             "type": "label",
-            "x": 760,
-            "y": 190,
-            "text": "Meeting Rooms",
-            "style": "h1"
+            "x": 275,
+            "y": 32,
+            "text": "Lobby / Reception",
+            "style": "h2"
         },
         {
             "type": "label",
-            "x": 760,
-            "y": 600,
-            "text": "Desks",
-            "style": "h1"
+            "x": 412,
+            "y": 32,
+            "text": "Meeting Room B",
+            "style": "h2"
         },
         {
             "type": "label",
-            "x": 1800,
-            "y": 200,
-            "text": "Lounge / Spare Space",
+            "x": 32,
+            "y": 250,
+            "text": "Bulletin / News Wall",
+            "style": "h2"
+        },
+        {
+            "type": "label",
+            "x": 245,
+            "y": 232,
+            "text": "Collaboration Lounge",
+            "style": "h2"
+        },
+        {
+            "type": "label",
+            "x": 412,
+            "y": 250,
+            "text": "Gallery",
+            "style": "h2"
+        },
+        {
+            "type": "label",
+            "x": 32,
+            "y": 438,
+            "text": "Cafeteria",
+            "style": "h2"
+        },
+        {
+            "type": "label",
+            "x": 375,
+            "y": 438,
+            "text": "Assigned Desks",
             "style": "h2"
         }
     ]

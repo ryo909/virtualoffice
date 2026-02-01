@@ -7,6 +7,7 @@ const DESK_SIT_DISTANCE = 40;
 
 /**
  * Check which spot the player is inside
+ * Supports both bounds-based (x,y,w,h) and radius-based (x,y,r) spots
  * @param {number} x 
  * @param {number} y 
  * @returns {object|null}
@@ -15,9 +16,21 @@ export function getSpotAt(x, y) {
     const spots = getSpots();
 
     for (const spot of spots) {
-        const b = spot.bounds;
-        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-            return spot;
+        // Check radius-based spot (action spots)
+        if (spot.x !== undefined && spot.y !== undefined && spot.r !== undefined) {
+            const dx = x - spot.x;
+            const dy = y - spot.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= spot.r) {
+                return spot;
+            }
+        }
+        // Check bounds-based spot (zoom rooms)
+        else if (spot.bounds) {
+            const b = spot.bounds;
+            if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+                return spot;
+            }
         }
     }
 
