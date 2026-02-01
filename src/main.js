@@ -113,8 +113,31 @@ export async function initApp(appConfig, session) {
         setActiveTheme(savedTheme);
     }
 
+    // Boot logging helper
+    const bootLog = (msg) => {
+        if (window.bootLog) window.bootLog(msg);
+        else console.log('[BOOT-Main]', msg);
+    };
+
+    bootLog('app: init start');
+
+    // Watchdog for map loading
+    const watchdog = setTimeout(() => {
+        if (window.showFatal) {
+            window.showFatal('起動がタイムアウトしました（10秒）。\nJSON読込/JS例外/パス不整合の可能性が高いです。');
+        }
+    }, 10000);
+
     // Load maps
-    await loadMaps();
+    try {
+        bootLog('app: calling loadMaps');
+        await loadMaps();
+        bootLog('app: loadMaps done');
+        clearTimeout(watchdog);
+    } catch (err) {
+        clearTimeout(watchdog);
+        throw err;
+    }
 
     // Load room settings
     await loadRoomSettings();

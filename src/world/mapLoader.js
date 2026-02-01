@@ -2,23 +2,34 @@
 
 let worldModel = null;
 
+// Helper for boot logging
+function bootLog(msg) {
+    console.log('[BOOT]', msg);
+    const el = document.getElementById('bootLog');
+    if (el) el.textContent += `${msg}\n`;
+}
+
 /**
- * Fetch JSON with strict checks (404/HTML/parse errors become readable errors)
+ * Fetch JSON with strict checks and logging
  */
 async function fetchJson(path) {
+    bootLog(`fetch: ${path}`);
     const res = await fetch(path, { cache: 'no-store' });
+    bootLog(`status: ${path} -> ${res.status}`);
 
-    // HTTP error (404 etc.)
     if (!res.ok) {
-        throw new Error(`Fetch failed: ${res.status} ${res.statusText} @ ${path}`);
+        const text = await res.text().catch(() => '');
+        throw new Error(`Fetch failed ${res.status} for ${path}\n${text.slice(0, 200)}`);
     }
 
-    // Parse error
+    // Check content type roughly
+    const ct = res.headers.get('content-type') || '';
+
     try {
         return await res.json();
     } catch (e) {
-        // If server returned HTML, this often becomes "Unexpected token <"
-        throw new Error(`JSON parse failed @ ${path}: ${e.message}`);
+        const text = await res.text().catch(() => '');
+        throw new Error(`JSON parse failed for ${path}: ${e.message}\nbody(head): ${text.slice(0, 200)}`);
     }
 }
 
@@ -26,6 +37,8 @@ async function fetchJson(path) {
  * Load all map data and merge into single world model
  */
 export async function loadMaps() {
+    bootLog('loadMaps: start');
+
     try {
         const [core, desksData, expansion, spotsData] = await Promise.all([
             fetchJson('./data/maps/map_core.json'),
@@ -33,6 +46,8 @@ export async function loadMaps() {
             fetchJson('./data/maps/map_expansion.json'),
             fetchJson('./data/spots.json')
         ]);
+
+        bootLog('loadMaps: json loaded');
 
         // Build world model
         worldModel = {
@@ -49,7 +64,7 @@ export async function loadMaps() {
             spots: (spotsData && spotsData.spots) ? spotsData.spots : []
         };
 
-        // Create lookup maps for quick access
+        // Create lookup maps
         worldModel.deskById = new Map();
         worldModel.desks.forEach(desk => {
             worldModel.deskById.set(desk.id, desk);
@@ -65,10 +80,11 @@ export async function loadMaps() {
             worldModel.zoneById.set(zone.id, zone);
         });
 
+        bootLog('loadMaps: worldModel ready');
         return worldModel;
     } catch (err) {
+        bootLog(`loadMaps: FAILED -> ${err.message}`);
         console.error('[loadMaps] FAILED', err);
-        // IMPORTANT: throw to let app show a fatal error instead of infinite loading
         throw err;
     }
 }

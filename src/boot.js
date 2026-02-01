@@ -6,34 +6,71 @@ import { initNameplateModal, showNameplateModal, hideNameplateModal } from './ui
 import { getSavedPassword, setSavedPassword } from './utils/storage.js';
 import { initApp, setupNameplate, saveNameplate, startPresence } from './main.js';
 
+// Global Boot Looger & Error Handler
+window.bootLog = function (msg) {
+    console.log('[BOOT]', msg);
+    const el = document.getElementById('bootLog');
+    if (el) el.textContent += `${msg}\n`;
+};
+
+window.showFatal = function (msg) {
+    console.error('[FATAL]', msg);
+    const el = document.getElementById('fatalError');
+    if (el) {
+        el.style.display = 'block';
+        el.textContent = `起動に失敗しました:\n${msg}\n\nDevTools Consoleも確認してください。`;
+    } else {
+        alert(msg);
+    }
+
+    // Hide spinner but keep screen for error message
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+        loadingScreen.classList.remove('hidden');
+        const spinner = loadingScreen.querySelector('.loading-spinner');
+        if (spinner) spinner.style.display = 'none';
+        const text = loadingScreen.querySelector('.loading-text');
+        if (text) text.style.display = 'none';
+    }
+};
+
+window.addEventListener('error', (e) => {
+    window.showFatal(`JS Error: ${e.message}\n${e.filename}:${e.lineno}:${e.colno}`);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+    const reason = e.reason?.message || String(e.reason);
+    window.showFatal(`Unhandled Promise Rejection: ${reason}`);
+});
+
 async function boot() {
-    console.log('Virtual Office - Booting...');
+    window.bootLog('Virtual Office - Booting...');
 
     try {
         // Step 1: Load config
-        console.log('Loading config...');
+        window.bootLog('Loading config...');
         const config = await loadConfig();
 
         // Step 2: Initialize Supabase
-        console.log('Initializing Supabase...');
+        window.bootLog('Initializing Supabase...');
         await initSupabase();
 
         // Step 3: Check session
-        console.log('Checking session...');
+        window.bootLog('Checking session...');
         const session = await getSession();
 
         if (session) {
             // Already logged in
-            console.log('Session found, proceeding...');
+            window.bootLog('Session found, proceeding...');
             await proceedAfterLogin(config, session);
         } else {
             // Need to login
-            console.log('No session, showing login...');
+            window.bootLog('No session, showing login...');
             showLoginFlow(config);
         }
     } catch (err) {
         console.error('Boot failed:', err);
-        showError(`起動エラー:\n${err.message || err}`);
+        window.showFatal(`起動エラー:\n${err.message || err}`);
     }
 }
 
@@ -60,7 +97,7 @@ function showLoginFlow(config) {
     if (savedPw) {
         if (!config) {
             // Should not happen, but safe check
-            showError('Config not loaded');
+            window.showFatal('Config not loaded');
             return;
         }
 
@@ -77,12 +114,15 @@ function showLoginFlow(config) {
 
 async function proceedAfterLogin(config, session) {
     try {
+        window.bootLog('Login successful');
         showLoading('マップを読み込み中...');
 
         // Initialize the app
+        window.bootLog('Initializing app logic...');
         await initApp(config, session);
 
         // Check/setup nameplate
+        window.bootLog('Checking nameplate...');
         showLoading('名札を確認中...');
         const hasNameplate = await setupNameplate();
 
@@ -96,7 +136,7 @@ async function proceedAfterLogin(config, session) {
         }
     } catch (err) {
         console.error('Proceed failed:', err);
-        showError(`初期化エラー:\n${err.message || err}`);
+        window.showFatal(`初期化エラー:\n${err.message || err}`);
     }
 }
 
@@ -108,7 +148,7 @@ function showNameplateFlow() {
             await finishBoot();
         } catch (err) {
             console.error('Nameplate flow failed:', err);
-            showError(`名札設定エラー:\n${err.message || err}`);
+            window.showFatal(`名札設定エラー:\n${err.message || err}`);
         }
     });
 
@@ -120,16 +160,18 @@ async function finishBoot() {
 
     try {
         // Start presence
+        window.bootLog('Starting presence...');
         await startPresence();
 
         // Hide loading, show main UI
         hideLoading();
         showMainUI();
 
+        window.bootLog('Virtual Office - Ready!');
         console.log('Virtual Office - Ready!');
     } catch (err) {
         console.error('Finish boot failed:', err);
-        showError(`接続エラー:\n${err.message || err}`);
+        window.showFatal(`接続エラー:\n${err.message || err}`);
     }
 }
 
@@ -149,29 +191,6 @@ function hideLoading() {
 function showMainUI() {
     document.getElementById('menubar')?.classList.remove('hidden');
     document.getElementById('main')?.classList.remove('hidden');
-}
-
-function showError(message) {
-    hideLoading();
-
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);color:#fff;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;white-space:pre-wrap;';
-
-    const box = document.createElement('div');
-    box.style.cssText = 'max-width:720px;background:rgba(20,20,20,0.95);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:20px;box-shadow:0 0 20px rgba(0,0,0,0.5);';
-
-    // HTML Escape
-    const safeMessage = String(message).replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
-
-    box.innerHTML = `
-        <div style="font-size:20px;font-weight:700;margin-bottom:12px;color:#ff5555;">Load Error</div>
-        <div style="font-size:14px;line-height:1.6;margin-bottom:16px;color:#e2e8f0;background:#1e293b;padding:12px;border-radius:6px;overflow-x:auto;">${safeMessage}</div>
-        <div style="font-size:12px;opacity:0.7;">Open DevTools Console details. <a href="javascript:location.reload()" style="color:#60a5fa;margin-left:8px;">Reload</a></div>
-    `;
-    div.appendChild(box);
-    document.body.appendChild(div);
 }
 
 // Start boot on DOM ready

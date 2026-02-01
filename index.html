@@ -21,6 +21,36 @@
     <div id="loading-screen">
       <div class="loading-spinner"></div>
       <div class="loading-text">Loading...</div>
+
+      <!-- Boot Log & Fatal Error -->
+      <pre id="bootLog" style="
+        margin-top:12px;
+        padding:10px;
+        max-width:520px;
+        max-height:220px;
+        overflow:auto;
+        background:rgba(0,0,0,0.06);
+        border-radius:8px;
+        font-size:12px;
+        line-height:1.4;
+        white-space:pre-wrap;
+        color: var(--color-text);
+        text-align: left;
+      "></pre>
+
+      <div id="fatalError" style="
+        display:none;
+        margin-top:12px;
+        padding:12px;
+        max-width:520px;
+        background:#ffe9e9;
+        border:1px solid #ff7a7a;
+        border-radius:10px;
+        color:#6b0000;
+        font-size:13px;
+        white-space:pre-wrap;
+        text-align: left;
+      "></div>
     </div>
 
     <!-- Menubar -->
@@ -249,7 +279,7 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="src/boot.js"></script>
+  <script type="module" src="src/boot.js?v=20260201_2"></script>
 </body>
 
 </html>
