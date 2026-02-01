@@ -58,6 +58,7 @@ const state = {
         status: 'online',
         avatar: { key: null, color: null }
     },
+    queuedAction: null, // { spotId, actionType }
     rt: {
         people: new Map()
     },
@@ -579,6 +580,39 @@ export async function initApp(appConfig, session) {
             renderMinimap(minimapCanvas, pos, otherPlayers);
         }
 
+        // Process queued action (auto-approach)
+        if (state.queuedAction) {
+            const spot = getSpotById(state.queuedAction.spotId);
+            if (spot) {
+                const targetPos = spot.interactPoint || {
+                    x: spot.bounds ? spot.bounds.x + spot.bounds.w / 2 : (spot.x || 0),
+                    y: spot.bounds ? spot.bounds.y + spot.bounds.h / 2 : (spot.y || 0)
+                };
+
+                const pos = getCurrentPos();
+                const dx = pos.x - targetPos.x;
+                const dy = pos.y - targetPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const proximity = spot.proximity || 90;
+
+                if (dist <= proximity) {
+                    // Arrived within range
+                    if (state.queuedAction.actionType === 'openAdmin') {
+                        showAdminModal();
+                    }
+                    state.queuedAction = null;
+                    // Stop movement if we just arrived? 
+                    // Optional: forceMove(pos.x, pos.y) to stop, but might be jarring.
+                    // Let it finish the path or just execute interaction.
+                } else if (!getIsMoving()) {
+                    // Not moving and still far - failed to reach
+                    state.queuedAction = null;
+                }
+            } else {
+                state.queuedAction = null;
+            }
+        }
+
         // Update debug HUD
         const cam = getCamera();
         updateDebugHud({
@@ -682,20 +716,38 @@ function handleSpotAction(action, spot) {
             showBulletinModal(action.title || 'Bulletin', news?.items || []);
             break;
         case 'openAdmin':
-            // Proximity check: only open if avatar is close
-            const proximity = spot?.proximity || 80;
+            // Proximity check
+            const proximity = spot?.proximity || 90;
             const avatarPos = getCurrentPos();
-            const spotX = spot?.x || 320;
-            const spotY = spot?.y || 85;
-            const dx = avatarPos.x - spotX;
-            const dy = avatarPos.y - spotY;
+
+            // Calculate distance to interact point (preferred) or center
+            let targetX, targetY;
+
+            if (spot.interactPoint) {
+                targetX = spot.interactPoint.x;
+                targetY = spot.interactPoint.y;
+            } else if (spot.bounds) {
+                targetX = spot.bounds.x + spot.bounds.w / 2;
+                targetY = spot.bounds.y + spot.bounds.h / 2;
+            } else {
+                targetX = spot.x || 320;
+                targetY = spot.y || 85;
+            }
+
+            const dx = avatarPos.x - targetX;
+            const dy = avatarPos.y - targetY;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= proximity) {
                 showAdminModal();
             } else {
-                console.log('[Main] Admin spot too far:', distance, 'px (max:', proximity, ')');
-                showToast('近づいてからクリックしてください');
+                // Auto-approach
+                console.log('[Main] Admin spot far, auto-approaching...', distance);
+                setMoveTarget(targetX, targetY);
+                state.queuedAction = {
+                    spotId: spot.id,
+                    actionType: action.type
+                };
             }
             break;
         default:
