@@ -289,6 +289,13 @@
     background: var(--color-bgSecondary);
 }
 
+.chat-tab:disabled,
+.chat-tab.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: transparent;
+}
+
 .chat-tab.active {
     background: var(--color-primary);
     color: white;

@@ -2,33 +2,69 @@
 
 import { formatTime } from '../utils/time.js';
 import { validateChatMessage } from '../utils/validate.js';
+import { initGlobalChatRealtime } from '../chatRealtime.js';
 
-let messages = {
-    all: [],
-    room: [],
-    dm: []
-};
+let messages = [];
 let currentTab = 'all';
-let onSendMessage = null;
+let chatSession = null;
+let getMyNameCb = null;
+let listEl = null;
+let inputEl = null;
+let sendBtn = null;
+let isOpen = false;
 
-export function initChatDrawer(sendCallback) {
-    onSendMessage = sendCallback;
+export function initChatDrawer({ getMyName }) {
+    getMyNameCb = getMyName;
 
-    // Tab switching
+    // Tab switching (Allのみ有効)
     const tabs = document.querySelectorAll('.chat-tab');
     tabs.forEach(tab => {
+        if (tab.dataset.chatTab !== 'all') {
+            tab.disabled = true;
+            tab.classList.add('disabled');
+            tab.setAttribute('aria-disabled', 'true');
+            tab.title = 'Coming soon';
+        }
         tab.addEventListener('click', () => {
-            switchTab(tab.dataset.chatTab);
+            if (tab.dataset.chatTab !== 'all') return;
+            switchTab('all');
         });
     });
 
-    // Send button
-    const sendBtn = document.getElementById('chat-send');
-    const input = document.getElementById('chat-input');
+    listEl = document.getElementById('chat-messages');
+    inputEl = document.getElementById('chat-input');
+    sendBtn = document.getElementById('chat-send');
 
-    sendBtn.addEventListener('click', () => sendMessage());
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+    sendBtn?.addEventListener('click', () => sendMessage());
+    inputEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+}
+
+export function setChatDrawerOpen(open) {
+    isOpen = open;
+
+    if (open) {
+        ensureChatSession();
+        renderMessages();
+        return;
+    }
+
+    if (chatSession) {
+        chatSession.destroy();
+        chatSession = null;
+    }
+}
+
+function ensureChatSession() {
+    if (chatSession) return;
+
+    chatSession = initGlobalChatRealtime({
+        getMyName: () => (getMyNameCb?.() || 'anonymous'),
+        onMessage: appendMessage
     });
 }
 
@@ -44,82 +80,72 @@ function switchTab(tab) {
 }
 
 function sendMessage() {
-    const input = document.getElementById('chat-input');
-    const validation = validateChatMessage(input.value);
+    if (!chatSession) {
+        ensureChatSession();
+    }
 
+    const validation = validateChatMessage(inputEl?.value);
     if (!validation.valid) return;
 
-    if (onSendMessage) {
-        onSendMessage(currentTab, validation.value);
-    }
-
-    input.value = '';
+    chatSession?.send?.(validation.value);
+    if (inputEl) inputEl.value = '';
 }
 
-export function addMessage(channel, { from, text, timestamp, fromMe = false }) {
-    const msg = { from, text, timestamp, fromMe };
-
-    if (channel === 'all') {
-        messages.all.push(msg);
-    } else if (channel === 'room') {
-        messages.room.push(msg);
-    } else if (channel === 'dm') {
-        messages.dm.push(msg);
+function appendMessage(msg) {
+    messages.push(msg);
+    if (messages.length > 100) {
+        messages = messages.slice(-100);
     }
 
-    // Keep max 100 messages per channel
-    ['all', 'room', 'dm'].forEach(ch => {
-        if (messages[ch].length > 100) {
-            messages[ch] = messages[ch].slice(-100);
-        }
-    });
-
-    if (channel === currentTab) {
-        renderMessages();
-    }
+    if (!isOpen || !listEl) return;
+    listEl.appendChild(createMessageElement(msg));
+    listEl.scrollTop = listEl.scrollHeight;
 }
 
 function renderMessages() {
-    const container = document.getElementById('chat-messages');
-    if (!container) return;
+    if (!listEl) return;
 
-    const msgs = messages[currentTab] || [];
+    listEl.innerHTML = '';
+    messages.forEach(msg => {
+        listEl.appendChild(createMessageElement(msg));
+    });
+    listEl.scrollTop = listEl.scrollHeight;
+}
 
-    container.innerHTML = msgs.map(msg => `
-    <div class="chat-message ${msg.fromMe ? 'from-me' : ''}">
-      <div class="chat-avatar">${getInitials(msg.from)}</div>
-      <div class="chat-body">
-        <span class="chat-name">${escapeHtml(msg.from)}</span>
-        <span class="chat-time">${formatTime(msg.timestamp)}</span>
-        <div class="chat-text">${escapeHtml(msg.text)}</div>
-      </div>
-    </div>
-  `).join('');
+function createMessageElement(msg) {
+    const item = document.createElement('div');
+    item.className = 'chat-message';
 
-    // Scroll to bottom
-    container.scrollTop = container.scrollHeight;
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    avatar.textContent = getInitials(msg.name);
+
+    const body = document.createElement('div');
+    body.className = 'chat-body';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'chat-name';
+    nameEl.textContent = msg.name;
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'chat-time';
+    timeEl.textContent = formatTime(msg.ts);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'chat-text';
+    textEl.textContent = msg.text;
+
+    body.appendChild(nameEl);
+    body.appendChild(timeEl);
+    body.appendChild(textEl);
+
+    item.appendChild(avatar);
+    item.appendChild(body);
+
+    return item;
 }
 
 function getInitials(name) {
     if (!name) return '?';
     return name.slice(0, 2).toUpperCase();
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-export function clearMessages() {
-    messages = { all: [], room: [], dm: [] };
-    renderMessages();
-}
-
-export function getCurrentTab() {
-    return currentTab;
-}
-
-export function setCurrentTab(tab) {
-    switchTab(tab);
 }

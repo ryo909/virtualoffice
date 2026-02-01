@@ -19,11 +19,11 @@ import { renderMinimap } from './ui/minimap.js';
 
 import { getConfig, getSupabase } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
-import { initRealtime, joinPresence, updatePresence, subscribeEvents, sendEventTo, subscribeChat, sendChat, shutdownRealtime } from './services/realtime.js';
+import { initRealtime, joinPresence, updatePresence, subscribeEvents, sendEventTo, shutdownRealtime } from './services/realtime.js';
 
 import { initMenubar, openDrawer, closeDrawer, updateDisplayName, updateStatus } from './ui/menubar.js';
 import { showToast, showPokeToast } from './ui/toast.js';
-import { initChatDrawer, addMessage } from './ui/drawer.chat.js';
+import { initChatDrawer, setChatDrawerOpen } from './ui/drawer.chat.js';
 import { initPeopleDrawer, updatePeople, getPeople } from './ui/drawer.people.js';
 import { initSearchDrawer, refreshSearch } from './ui/drawer.search.js';
 import { initSettingsDrawer, applyTheme, setDisplayNameInput, setActiveStatus, setActiveTheme } from './ui/drawer.settings.js';
@@ -35,7 +35,6 @@ import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, is
 import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } from './ui/modal.admin.js';
 import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
 
-import { initChatLogic, updateRoomChannel, sendChatMessage, addDmChannel } from './chat/chatLogic.js';
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
 import { initWebRTC } from './call/webrtc.js';
@@ -176,7 +175,6 @@ export async function initApp(appConfig, session) {
         const spot = getSpotAt(pos.x, pos.y);
         if (spot?.id !== state.world.insideSpotId) {
             state.world.insideSpotId = spot?.id || null;
-            updateRoomChannel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId);
             // Note: Action spots are handled via click, not walk-in
         }
     });
@@ -187,16 +185,8 @@ export async function initApp(appConfig, session) {
         updateDrawerUI();
     });
 
-    initChatDrawer((tab, text) => {
-        sendChatMessage(tab, text);
-
-        // Add to local display
-        addMessage(tab, {
-            from: state.me.displayName,
-            text: text,
-            timestamp: Date.now(),
-            fromMe: true
-        });
+    initChatDrawer({
+        getMyName: () => state.me.displayName || 'anonymous'
     });
 
     initPeopleDrawer({
@@ -209,9 +199,7 @@ export async function initApp(appConfig, session) {
             sendPoke(person.actorId);
             showToast(`Poked ${person.displayName}`);
         },
-        dmCallback: (person) => {
-            addDmChannel(person.actorId);
-            state.ui.chatTab = 'dm';
+        dmCallback: () => {
             openDrawer('chat');
         }
     });
@@ -277,20 +265,17 @@ export async function initApp(appConfig, session) {
         sit: (desk) => {
             state.world.seatedDeskId = desk.id;
             teleportTo(desk.standPoint.x, desk.standPoint.y);
-            updateRoomChannel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId);
             hideContextPanel();
         },
         stand: () => {
             state.world.seatedDeskId = null;
-            updateRoomChannel(state.world.insideSpotId, null, state.world.areaId);
             hideContextPanel();
         },
         poke: (person) => {
             sendPoke(person.actorId);
             showToast(`Poked ${person.displayName}`);
         },
-        dm: (person) => {
-            addDmChannel(person.actorId);
+        dm: () => {
             openDrawer('chat');
         },
         call: (person) => {
@@ -353,12 +338,6 @@ export async function initApp(appConfig, session) {
 
     initSignaling({ actorId: state.me.actorId });
 
-    // Initialize chat logic
-    initChatLogic({
-        actorId: state.me.actorId,
-        displayName: state.me.displayName
-    });
-
     // Initialize realtime
     initRealtime({
         supabase: getSupabase(),
@@ -405,9 +384,6 @@ export async function initApp(appConfig, session) {
 
     // Subscribe to events
     subscribeEvents({ myActorId: state.me.actorId });
-
-    // Subscribe to chat
-    subscribeChat({ all: true, room: null, dmList: [] });
 
     // Helper: Check if click is on UI element
     function isUiClick(target) {
@@ -706,6 +682,8 @@ function updateDrawerUI() {
         };
         title.textContent = titles[state.ui.drawer] || 'Drawer';
     }
+
+    setChatDrawerOpen(state.ui.drawer === 'chat');
 
     // Close button
     document.getElementById('drawer-close')?.addEventListener('click', () => {
