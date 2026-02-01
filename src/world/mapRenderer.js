@@ -285,6 +285,9 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
 
     // === Layer 2: Action Spots visualization (optional, for debugging) ===
     // drawActionSpots();
+    if (showDebugSpots) {
+        drawDebugSpots();
+    }
 
     // === Layer 3: Click marker ===
     if (clickMarker) {
@@ -947,4 +950,68 @@ export function getCamera() {
 
 export function getCanvasSize() {
     return { ...canvasSize };
+}
+
+// Debug control
+let showDebugSpots = false;
+
+export function setShowDebugSpots(enabled) {
+    showDebugSpots = enabled;
+}
+
+/**
+ * Draw debug spots with IDs and bounds
+ */
+function drawDebugSpots() {
+    const spots = getSpots();
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    spots.forEach(spot => {
+        ctx.beginPath();
+        let labelX, labelY;
+
+        // Color coding
+        if (spot.id === 'spot:admin') {
+            ctx.strokeStyle = '#ff00ff'; // Magenta
+            ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
+        } else if (spot.id.includes('meeting')) {
+            ctx.strokeStyle = '#ffa500'; // Orange
+            ctx.fillStyle = 'rgba(255, 165, 0, 0.2)';
+        } else {
+            ctx.strokeStyle = '#00ffff'; // Cyan
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
+        }
+
+        // Draw shape
+        if (spot.bounds) {
+            ctx.rect(spot.bounds.x, spot.bounds.y, spot.bounds.w, spot.bounds.h);
+            labelX = spot.bounds.x;
+            labelY = spot.bounds.y;
+        } else if (spot.r) {
+            ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
+            labelX = spot.x - spot.r;
+            labelY = spot.y - spot.r;
+        }
+
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw Label Background
+        const labelText = `${spot.id} (P:${spot.priority || 0})`;
+        const metrics = ctx.measureText(labelText);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(labelX, labelY - 14, metrics.width + 4, 14);
+
+        // Draw Label Text
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeText(labelText, labelX + 2, labelY - 12);
+        ctx.fillText(labelText, labelX + 2, labelY - 12);
+    });
+    ctx.restore();
 }

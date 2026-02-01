@@ -12,8 +12,15 @@ const DESK_SIT_DISTANCE = 40;
  * @param {number} y 
  * @returns {object|null}
  */
-export function getSpotAt(x, y) {
+/**
+ * Get all spots at position, sorted by priority desc
+ * @param {number} x
+ * @param {number} y
+ * @returns {Array<object>}
+ */
+export function getSortedSpotsAt(x, y) {
     const spots = getSpots();
+    const hits = [];
 
     for (const spot of spots) {
         // Check radius-based spot (action spots)
@@ -22,19 +29,32 @@ export function getSpotAt(x, y) {
             const dy = y - spot.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist <= spot.r) {
-                return spot;
+                hits.push(spot);
             }
         }
-        // Check bounds-based spot (zoom rooms)
+        // Check bounds-based spot (zoom rooms, admin)
         else if (spot.bounds) {
             const b = spot.bounds;
             if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-                return spot;
+                hits.push(spot);
             }
         }
     }
 
-    return null;
+    // Sort by priority (default 0)
+    return hits.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+}
+
+/**
+ * Check which spot the player is inside (returns highest priority)
+ * Supports both bounds-based (x,y,w,h) and radius-based (x,y,r) spots
+ * @param {number} x 
+ * @param {number} y 
+ * @returns {object|null}
+ */
+export function getSpotAt(x, y) {
+    const hits = getSortedSpotsAt(x, y);
+    return hits.length > 0 ? hits[0] : null;
 }
 
 /**

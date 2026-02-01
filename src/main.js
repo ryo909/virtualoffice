@@ -1,10 +1,17 @@
 // main.js - Main application state and logic
 
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
-import { initRenderer, render, updateCamera, renderMinimap, screenToWorld, getCamera, applyZoom } from './world/mapRenderer.js';
-import { initMovement, updateMovement, setMoveTarget, getCurrentPos, getFacing, teleportTo, getTarget, getIsMoving, forceMove, lastPathResult } from './world/movement.js';
+import {
+    initRenderer, render, worldToScreen, screenToWorld,
+    updateCamera, applyZoom, setShowDebugSpots
+} from './world/mapRenderer.js';
+import {
+    initMovement, updateMovement, getCurrentPos,
+    getFacing, getIsMoving, setMoveTarget,
+    stopMoving, setPosition
+} from './world/movement.js';
 import { canMoveTo, canMoveToDebug } from './world/collision.js';
-import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel } from './world/spotLogic.js';
+import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel, getSortedSpotsAt } from './world/spotLogic.js';
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
 import { updateAnimation } from './avatar/pixelSpriteRenderer.js';
@@ -67,6 +74,10 @@ const state = {
         peerActorId: null,
         callId: null,
         lastError: null
+    },
+    debug: {
+        showSpots: false,
+        canMoveTo: null
     }
 };
 
@@ -342,16 +353,28 @@ export async function initApp(appConfig, session) {
         },
         onEvent: (event) => {
             handleEvent(event);
-        },
-        onChat: (msg) => {
-            if (msg.fromActorId !== state.me.actorId) {
-                addMessage(msg.channel, {
-                    from: msg.fromDisplayName || 'Unknown',
-                    text: msg.text,
-                    timestamp: msg.timestamp,
-                    fromMe: false
-                });
+        }
+    });
+
+    // Keyboard events
+    window.addEventListener('keydown', (e) => {
+        // Chat focus check
+        if (state.ui.modal !== 'none' && state.ui.modal !== 'chat') return;
+
+        if (e.code === 'Enter') {
+            if (document.activeElement === document.getElementById('chat-input')) {
+                // Send message logic handled in chat module
+            } else {
+                document.getElementById('chat-input')?.focus();
             }
+        }
+
+        // Debug toggle (F3)
+        if (e.code === 'F3') {
+            e.preventDefault();
+            state.debug.showSpots = !state.debug.showSpots;
+            setShowDebugSpots(state.debug.showSpots);
+            console.log('[Debug] Spots overlay:', state.debug.showSpots ? 'ON' : 'OFF');
         }
     });
 
@@ -385,30 +408,22 @@ export async function initApp(appConfig, session) {
         lastActivityTime = Date.now();
 
         const rect = canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
+        const rectX = e.clientX - rect.left;
+        const rectY = e.clientY - rect.top;
 
-        const worldPos = screenToWorld(screenX, screenY);
+        // Convert to world coordinates
+        const worldPos = screenToWorld(rectX, rectY);
 
-        // Debug: Track click coordinates for verification
-        const moveDebug = canMoveToDebug(worldPos.x, worldPos.y);
-        debug.lastClick = {
-            screen: { x: Math.round(screenX), y: Math.round(screenY) },
-            world: { x: Math.round(worldPos.x), y: Math.round(worldPos.y) },
-            time: Date.now()
-        };
-        debug.lastWorldPos = worldPos;
-        debug.canMoveTo = moveDebug.ok;
-        debug.moveReason = moveDebug.reason;
-
+        // Debug logging
+        const sortedSpots = getSortedSpotsAt(worldPos.x, worldPos.y);
         console.log('[Click]', {
-            screen: debug.lastClick.screen,
-            world: debug.lastClick.world,
-            canMoveTo: moveDebug,
-            camera: getCamera()
+            screenX: rectX,
+            screenY: rectY,
+            worldX: Math.round(worldPos.x),
+            worldY: Math.round(worldPos.y),
+            hits: sortedSpots.map(h => `${h.id}(P:${h.priority || 0})`)
         });
 
-        // Check if clicked on a clickable element (spot, desk, user)
         const clickable = getClickableAt(worldPos.x, worldPos.y);
 
         if (clickable.kind === 'spot' && clickable.data?.action) {

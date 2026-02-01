@@ -2,10 +2,11 @@
     "version": 2,
     "spots": [
         {
-            "id": "zoom:meeting_a",
+            "id": "spot:meeting_a",
             "kind": "zoom_room",
             "label": "Meeting A",
             "roomKey": "meeting_a",
+            "priority": 50,
             "bounds": {
                 "x": 22,
                 "y": 22,
@@ -22,15 +23,16 @@
             }
         },
         {
-            "id": "zoom:meeting_b",
+            "id": "spot:meeting_b",
             "kind": "zoom_room",
             "label": "Meeting B",
             "roomKey": "meeting_b",
+            "priority": 50,
             "bounds": {
-                "x": 398,
-                "y": 22,
-                "w": 220,
-                "h": 155
+                "x": 450,
+                "y": 35,
+                "w": 175,
+                "h": 135
             },
             "enterPoint": {
                 "x": 508,
@@ -46,6 +48,7 @@
             "kind": "action_spot",
             "label": "My Tools",
             "zoneId": "area:gallery",
+            "priority": 10,
             "x": 547,
             "y": 325,
             "r": 35,
@@ -69,6 +72,7 @@
             "kind": "action_spot",
             "label": "News Wall",
             "zoneId": "area:bulletin",
+            "priority": 10,
             "x": 88,
             "y": 290,
             "r": 35,
@@ -82,11 +86,12 @@
             "kind": "action_spot",
             "label": "Admin",
             "zoneId": "area:lobby",
+            "priority": 100,
             "bounds": {
-                "x": 305,
-                "y": 50,
-                "w": 80,
-                "h": 50
+                "x": 325,
+                "y": 52,
+                "w": 130,
+                "h": 72
             },
             "interactPoint": {
                 "x": 345,
