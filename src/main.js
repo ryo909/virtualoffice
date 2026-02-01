@@ -295,6 +295,7 @@ export async function initApp(appConfig, session) {
             state.world.seatedDeskId = null;
             state.world.forcedSeated = false;
             leaveDeskCall();
+            stopMoving();
             if (prevPosBeforeSit) {
                 teleportTo(prevPosBeforeSit.x, prevPosBeforeSit.y);
                 prevPosBeforeSit = null;
@@ -486,6 +487,13 @@ export async function initApp(appConfig, session) {
 
         // Convert to world coordinates
         const worldPos = screenToWorld(rectX, rectY);
+
+        console.log('[MOVE] click received', {
+            seated: state.world.seatedDeskId != null,
+            forcedSeated: state.world.forcedSeated === true,
+            inputTarget: getTarget(),
+            isMoving: getIsMoving()
+        });
 
         // Debug logging
         const sortedSpots = getSortedSpotsAt(worldPos.x, worldPos.y);
