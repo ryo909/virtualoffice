@@ -385,9 +385,9 @@ function drawCollisionDebug(world, playerPos) {
     }
 
     if (showDeskColliders) {
-        // Desk colliders (orange, semi-transparent)
-        ctx.fillStyle = 'rgba(251, 146, 60, 0.25)';
-        ctx.strokeStyle = 'rgba(251, 146, 60, 0.9)';
+        // Desk colliders (yellow, semi-transparent)
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
         ctx.lineWidth = 1.5;
         deskColliders.forEach(desk => {
             ctx.fillRect(desk.x, desk.y, desk.w, desk.h);

@@ -110,7 +110,9 @@ export async function loadMaps() {
             ...(desksData.obstacles || []),
             ...(expansion.obstacles || [])
         ];
-        const worldObstacles = obstaclesFinal.filter(obs => !isDeskObstacle(obs));
+        const worldObstacles = obstaclesFinal
+            .filter(obs => !isDeskObstacle(obs))
+            .map(obs => ({ ...obs, source: 'world' }));
         const deskColliders = buildDeskColliders(desksData.desks || []);
 
         // Build world model
@@ -163,6 +165,12 @@ export async function loadMaps() {
         bootLog(`deskColliders count: ${deskColliders.length}`);
         bootLog(`zones count: ${zones.length}`);
         bootLog(`walkableFromZones count: ${walkableFromZones.length}`);
+        bootLog(`desks count: ${worldModel.desks.length}`);
+        bootLog(`obstacles merged: ${worldModel.obstacles.length}`);
+        bootLog(`walkable merged: ${walkableFinal.length}`);
+        bootLog(`zones merged: ${zones.length}`);
+        bootLog(`desks=${worldModel.desks.length} obstacles=${worldModel.obstacles.length} walkable=${walkableFinal.length} zones=${zones.length}`);
+        console.log('[DEBUG] desk0', worldModel.desks?.[0]);
         bootLog('loadMaps: worldModel ready');
         return worldModel;
     } catch (err) {
@@ -315,7 +323,8 @@ function buildDeskColliders(desks = []) {
             h: height,
             tag: `desk:${desk.id}`,
             id: desk.id,
-            kind: 'desk'
+            kind: 'desk',
+            source: 'desk'
         };
     });
 }

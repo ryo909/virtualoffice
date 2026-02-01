@@ -103,6 +103,7 @@ function showDeskPanel(desk, title, actions, meta = {}) {
     const seated = meta.seated === true;
     const occupant = meta.occupant || null;
     const callState = meta.callState || {};
+    const forced = meta.forced === true;
     const callStatus = callState.status || 'idle';
     const inCall = callStatus === 'in_call' || callStatus === 'connecting';
 
@@ -112,6 +113,7 @@ function showDeskPanel(desk, title, actions, meta = {}) {
 
     if (seated) {
         // Currently seated
+        html += `<div class="context-status">🪑 Seated${forced ? ' (forced)' : ''}</div>`;
         html += `<div class="context-status">📞 Call: ${callStatus}</div>`;
         if (!inCall) {
             html += `<button class="btn btn-primary" id="ctx-join-call">📞 通話に参加</button>`;
@@ -168,11 +170,11 @@ export function hideContextPanel() {
     }
 }
 
-export function updateDeskPanel(desk, seated, occupant, callState) {
+export function updateDeskPanel(desk, seated, occupant, callState, forced = false) {
     const title = document.getElementById('context-title');
     const actions = document.getElementById('context-actions');
 
     if (title && actions) {
-        showDeskPanel(desk, title, actions, { seated, occupant, callState });
+        showDeskPanel(desk, title, actions, { seated, occupant, callState, forced });
     }
 }

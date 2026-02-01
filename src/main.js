@@ -64,7 +64,8 @@ const state = {
         pos: { x: 260, y: 260 },
         facing: 'down',
         seatedDeskId: null,
-        insideSpotId: null
+        insideSpotId: null,
+        forcedSeated: false
     },
     me: {
         actorId: null,
@@ -278,12 +279,14 @@ export async function initApp(appConfig, session) {
                 leaveDeskCall();
             }
             state.world.seatedDeskId = desk.id;
+            state.world.forcedSeated = false;
             teleportTo(desk.standPoint.x, desk.standPoint.y);
             hideContextPanel();
             refreshDeskPanel();
         },
         stand: () => {
             state.world.seatedDeskId = null;
+            state.world.forcedSeated = false;
             leaveDeskCall();
             hideContextPanel();
             refreshDeskPanel();
@@ -316,7 +319,8 @@ export async function initApp(appConfig, session) {
         if (selection?.kind !== 'desk') return {};
         return {
             seated: state.world.seatedDeskId === selection.data.id,
-            callState: deskCallState
+            callState: deskCallState,
+            forced: state.world.forcedSeated === true && state.world.seatedDeskId === selection.data.id
         };
     }
 
@@ -327,7 +331,8 @@ export async function initApp(appConfig, session) {
             selection.data,
             state.world.seatedDeskId === selection.data.id,
             null,
-            deskCallState
+            deskCallState,
+            state.world.forcedSeated === true
         );
     }
 
@@ -540,6 +545,26 @@ export async function initApp(appConfig, session) {
         if (e.key === 'F9') {
             window.DEBUG_COLLISION = !window.DEBUG_COLLISION;
             console.log('[DEBUG] Collision Debug', window.DEBUG_COLLISION ? 'ON' : 'OFF');
+        }
+        if (e.key === 'F6') {
+            const forced = state.world.forcedSeated;
+            if (forced) {
+                state.world.seatedDeskId = null;
+                state.world.forcedSeated = false;
+                leaveDeskCall();
+                showToast('Forced seat cleared', 'info');
+            } else {
+                const p = getCurrentPos();
+                const nearest = getNearbyDesk(p.x, p.y);
+                if (nearest) {
+                    state.world.seatedDeskId = nearest.id;
+                    state.world.forcedSeated = true;
+                    showToast(`Seated: ${nearest.id} (forced)`, 'info');
+                } else {
+                    showToast('No nearby desk found', 'error');
+                }
+            }
+            refreshDeskPanel();
         }
         if (e.key.toLowerCase() === 'g') {
             // G: Force set move target +200 right
