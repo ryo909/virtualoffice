@@ -13,13 +13,14 @@ function bootLog(msg) {
  * Fetch JSON with strict checks and logging
  */
 async function fetchJson(path) {
-    bootLog(`fetch: ${path}`);
-    const res = await fetch(path, { cache: 'no-store' });
-    bootLog(`status: ${path} -> ${res.status}`);
+    const url = String(path);
+    bootLog(`fetch: ${url}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    bootLog(`status: ${url} -> ${res.status}`);
 
     if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`Fetch failed ${res.status} for ${path}\n${text.slice(0, 200)}`);
+        throw new Error(`Fetch failed ${res.status} for ${url}\n${text.slice(0, 200)}`);
     }
 
     // Check content type roughly
@@ -31,7 +32,7 @@ async function fetchJson(path) {
     try {
         return JSON.parse(text);
     } catch (e) {
-        throw new Error(`JSON parse failed for ${path}: ${e.message}\nbody(head): ${text.slice(0, 200)}`);
+        throw new Error(`JSON parse failed for ${url}: ${e.message}\nbody(head): ${text.slice(0, 200)}`);
     }
 }
 
@@ -42,12 +43,46 @@ export async function loadMaps() {
     bootLog('loadMaps: start');
 
     try {
-        const [core, desksData, expansion, spotsData] = await Promise.all([
-            fetchJson('./data/maps/map_core.json'),
-            fetchJson('./data/maps/map_desks.json'),
-            fetchJson('./data/maps/map_expansion.json'),
-            fetchJson('./data/spots.json')
-        ]);
+        const mapRequests = [
+            { key: 'core', url: new URL('../../data/maps/map_core.json', import.meta.url).href },
+            { key: 'desks', url: new URL('../../data/maps/map_desks.json', import.meta.url).href },
+            { key: 'expansion', url: new URL('../../data/maps/map_expansion.json', import.meta.url).href },
+            { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href }
+        ];
+
+        const settled = await Promise.allSettled(
+            mapRequests.map((req) => fetchJson(req.url))
+        );
+
+        const failures = [];
+        const values = {};
+        settled.forEach((result, index) => {
+            const req = mapRequests[index];
+            if (result.status === 'fulfilled') {
+                values[req.key] = result.value;
+            } else {
+                failures.push({ ...req, error: result.reason });
+            }
+        });
+
+        if (failures.length) {
+            failures.forEach((f) => {
+                console.error('[loadMaps] File load failed', f.key, f.url, f.error);
+                bootLog(`loadMaps: FAILED file -> ${f.key}: ${f.url}`);
+            });
+
+            const summary = failures
+                .map((f) => `${f.key}: ${f.url}`)
+                .join('\n');
+            const errorMessage = `Map data load failed (${failures.length}):\n${summary}`;
+
+            throw new Error(errorMessage);
+        }
+
+        const core = values.core;
+        const desksData = values.desks;
+        const expansion = values.expansion;
+        const spotsData = values.spots;
 
         bootLog('loadMaps: json loaded');
 
