@@ -69,8 +69,10 @@ export function getNearbyDesk(x, y) {
     let closestDist = DESK_SIT_DISTANCE;
 
     for (const desk of desks) {
-        const dx = x - desk.standPoint.x;
-        const dy = y - desk.standPoint.y;
+        const anchor = desk.standPoint || desk.pos;
+        if (!anchor) continue;
+        const dx = x - anchor.x;
+        const dy = y - anchor.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < closestDist) {
@@ -79,6 +81,10 @@ export function getNearbyDesk(x, y) {
         }
     }
 
+    if (closest) {
+        const anchor = closest.standPoint || closest.pos;
+        console.log('[desk] nearest', closest.id, Math.round(closestDist), x, y, anchor?.x, anchor?.y);
+    }
     return closest;
 }
 

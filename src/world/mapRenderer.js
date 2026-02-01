@@ -376,8 +376,8 @@ function drawCollisionDebug(world, playerPos) {
     });
 
     if (showWorldObstacles) {
-        // World obstacles (red)
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        // World obstacles (orange)
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.9)';
         ctx.lineWidth = 2;
         worldObstacles.forEach(obs => {
             ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
@@ -385,9 +385,9 @@ function drawCollisionDebug(world, playerPos) {
     }
 
     if (showDeskColliders) {
-        // Desk colliders (yellow, semi-transparent)
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
-        ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+        // Desk colliders (red, semi-transparent)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
         ctx.lineWidth = 1.5;
         deskColliders.forEach(desk => {
             ctx.fillRect(desk.x, desk.y, desk.w, desk.h);

@@ -8,7 +8,7 @@ import {
 import {
     initMovement, updateMovement, getCurrentPos,
     getFacing, getIsMoving, setMoveTarget,
-    stopMoving, setPosition, getTarget, lastPathResult
+    stopMoving, setPosition, getTarget, lastPathResult, teleportTo
 } from './world/movement.js';
 import { canMoveTo, canMoveToDebug } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel, getSortedSpotsAt } from './world/spotLogic.js';

@@ -1,6 +1,5 @@
 // mapLoader.js - Load and merge map data
 
-import { getConfig } from '../services/supabaseClient.js';
 import { furniture } from './mapStyles.js';
 
 let worldModel = null;
@@ -94,6 +93,7 @@ export async function loadMaps() {
             ...(desksData.zones || []),
             ...(expansion.zones || [])
         ];
+        const normalizedDesks = normalizeDesks(desksData.desks || [], core.meta?.size);
         const walkableBase = [
             ...(core.walkable || []),
             ...(desksData.walkable || []),
@@ -113,7 +113,7 @@ export async function loadMaps() {
         const worldObstacles = obstaclesFinal
             .filter(obs => !isDeskObstacle(obs))
             .map(obs => ({ ...obs, source: 'world' }));
-        const deskColliders = buildDeskColliders(desksData.desks || []);
+        const deskColliders = buildDeskColliders(normalizedDesks);
 
         // Build world model
         worldModel = {
@@ -131,7 +131,7 @@ export async function loadMaps() {
             obstacles: [...worldObstacles, ...deskColliders],
             zones,
             decor: [...(core.decor || []), ...(expansion.decor || [])],
-            desks: desksData.desks || [],
+            desks: normalizedDesks,
             deskRules: desksData.deskRules || {},
             rooms: expansion.rooms || [],
             spots: (spotsData && spotsData.spots) ? spotsData.spots : []
@@ -291,31 +291,25 @@ function isDeskObstacle(obs) {
     return tag.toLowerCase().includes('desk');
 }
 
-function getDeskColliderConfig() {
-    const cfg = getConfig();
-    const collision = cfg?.collision || {};
-    return {
-        deskWidthRatio: Number.isFinite(collision.deskWidthRatio) ? collision.deskWidthRatio : 0.6,
-        deskHeightRatio: Number.isFinite(collision.deskHeightRatio) ? collision.deskHeightRatio : 0.45,
-        deskYOffsetRatio: Number.isFinite(collision.deskYOffsetRatio) ? collision.deskYOffsetRatio : 0.18
-    };
-}
-
 function buildDeskColliders(desks = []) {
-    const { deskWidthRatio, deskHeightRatio, deskYOffsetRatio } = getDeskColliderConfig();
-    const deskW = furniture.desk.width;
-    const deskH = furniture.desk.height;
-    const colliderW = Math.max(1, deskW * deskWidthRatio);
-    const colliderH = Math.max(1, deskH * deskHeightRatio);
-    const yOffset = deskH * deskYOffsetRatio;
-
     return desks.map(desk => {
-        const baseX = desk.pos.x - deskW / 2;
-        const baseY = desk.pos.y - deskH / 2;
-        const x = baseX + (deskW - colliderW) / 2;
-        const y = baseY + yOffset;
+        const base = getDeskBaseRect(desk);
+        const baseW = base.w;
+        const baseH = base.h;
+        const deskWidthRatio = 0.6;
+        const deskHeightRatio = 0.45;
+        const deskYOffsetRatio = 0.18;
+        const topCutRatio = 0.35;
+
+        const colliderW = Math.max(1, baseW * deskWidthRatio);
+        const colliderH = Math.max(1, baseH * deskHeightRatio);
+        const yOffset = baseH * deskYOffsetRatio;
+        const topCut = Math.min(colliderH - 1, Math.max(0, colliderH * topCutRatio));
+
+        const x = base.x + (baseW - colliderW) / 2;
+        const y = base.y + yOffset + topCut;
         const width = colliderW;
-        const height = colliderH;
+        const height = Math.max(1, colliderH - topCut);
         return {
             x,
             y,
@@ -326,6 +320,85 @@ function buildDeskColliders(desks = []) {
             kind: 'desk',
             source: 'desk'
         };
+    });
+}
+
+function getDeskBaseRect(desk) {
+    if (desk.bounds) {
+        return { x: desk.bounds.x, y: desk.bounds.y, w: desk.bounds.w, h: desk.bounds.h };
+    }
+    if (desk.pos) {
+        const w = furniture.desk.width;
+        const h = furniture.desk.height;
+        return {
+            x: desk.pos.x - w / 2,
+            y: desk.pos.y - h / 2,
+            w,
+            h
+        };
+    }
+    if (desk.standPoint) {
+        const w = 120;
+        const h = 90;
+        return {
+            x: desk.standPoint.x - w / 2,
+            y: desk.standPoint.y + 8,
+            w,
+            h
+        };
+    }
+    return { x: 0, y: 0, w: 120, h: 90 };
+}
+
+function normalizeDesks(desks = [], size) {
+    const W = size?.w || size?.width || 0;
+    const H = size?.h || size?.height || 0;
+    const TILE = size?.tileSize || 16;
+    let maxX = 0;
+    let maxY = 0;
+
+    desks.forEach(desk => {
+        const points = [desk.pos, desk.standPoint].filter(Boolean);
+        points.forEach(p => {
+            if (Number.isFinite(p.x)) maxX = Math.max(maxX, p.x);
+            if (Number.isFinite(p.y)) maxY = Math.max(maxY, p.y);
+        });
+        if (desk.bounds) {
+            maxX = Math.max(maxX, desk.bounds.x + desk.bounds.w);
+            maxY = Math.max(maxY, desk.bounds.y + desk.bounds.h);
+        }
+    });
+
+    let scale = 1;
+    if (W && H && maxX <= W / 4 && maxY <= H / 4) {
+        scale = TILE;
+    }
+
+    return desks.map(desk => {
+        const next = { ...desk };
+        if (desk.pos) {
+            next.pos = { x: desk.pos.x * scale, y: desk.pos.y * scale };
+        }
+        if (desk.standPoint) {
+            next.standPoint = { x: desk.standPoint.x * scale, y: desk.standPoint.y * scale };
+        }
+        if (desk.bounds) {
+            next.bounds = {
+                x: desk.bounds.x * scale,
+                y: desk.bounds.y * scale,
+                w: desk.bounds.w * scale,
+                h: desk.bounds.h * scale
+            };
+        }
+        if (W && H) {
+            const pts = [next.pos, next.standPoint].filter(Boolean);
+            pts.forEach(p => {
+                if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
+                    console.warn('[desk] out of bounds', desk.id, p.x, p.y, W, H, desk);
+                }
+            });
+        }
+        return next;
     });
 }
 
