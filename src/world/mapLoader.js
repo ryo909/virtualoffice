@@ -86,9 +86,14 @@ export async function loadMaps() {
 
         bootLog('loadMaps: json loaded');
 
-        const zones = [...(core.zones || []), ...(expansion.zones || [])];
+        const zones = [
+            ...(core.zones || []),
+            ...(desksData.zones || []),
+            ...(expansion.zones || [])
+        ];
         const walkableBase = [
             ...(core.walkable || []),
+            ...(desksData.walkable || []),
             ...(expansion.walkable || [])
         ];
         const walkableFromZones = extractWalkableFromZones(zones);
@@ -99,6 +104,7 @@ export async function loadMaps() {
         );
         const obstaclesFinal = [
             ...(core.obstacles || []),
+            ...(desksData.obstacles || []),
             ...(expansion.obstacles || [])
         ];
 
@@ -143,6 +149,7 @@ export async function loadMaps() {
         bootLog(`walkableFinal: ${walkableFinal.length}`);
         bootLog(`walkableInflated: ${walkableInflated.length}`);
         bootLog(`obstaclesFinal: ${obstaclesFinal.length}`);
+        bootLog(`zones: ${zones.length}`);
         bootLog('loadMaps: worldModel ready');
         return worldModel;
     } catch (err) {
