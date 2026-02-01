@@ -334,16 +334,31 @@ function drawActionSpots() {
 }
 
 function drawCollisionDebug(world, playerPos) {
-    const walkables = world.walkable || [];
-    const obstacles = world.obstacles || [];
+    const walkableBase = world.walkableBase || [];
+    const walkableFromZones = world.walkableFromZones || [];
+    const walkableFinal = world.walkableFinal || world.walkable || [];
+    const obstacles = world.obstaclesFinal || world.obstacles || [];
+    const zones = world.zones || [];
     const spots = getSpots() || [];
 
     ctx.save();
 
-    // Walkable rects (green)
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
-    ctx.lineWidth = 2;
-    walkables.forEach(area => {
+    // Walkable base (green fill)
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
+    walkableBase.forEach(area => {
+        ctx.fillRect(area.x, area.y, area.w, area.h);
+    });
+
+    // Walkable from zones (blue fill)
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.18)';
+    walkableFromZones.forEach(area => {
+        ctx.fillRect(area.x, area.y, area.w, area.h);
+    });
+
+    // Walkable final (green outline)
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
+    ctx.lineWidth = 1.5;
+    walkableFinal.forEach(area => {
         ctx.strokeRect(area.x, area.y, area.w, area.h);
     });
 
@@ -352,6 +367,20 @@ function drawCollisionDebug(world, playerPos) {
     ctx.lineWidth = 2;
     obstacles.forEach(obs => {
         ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+    });
+
+    // Zones (yellow outline + label)
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(250, 204, 21, 0.9)';
+    zones.forEach(zone => {
+        const b = zone.bounds;
+        if (!b) return;
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        if (zone.id) {
+            ctx.fillText(zone.id, b.x + 4, b.y + 12);
+        }
     });
 
     // Spots (blue)

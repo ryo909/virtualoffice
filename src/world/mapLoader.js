@@ -86,14 +86,27 @@ export async function loadMaps() {
 
         bootLog('loadMaps: json loaded');
 
+        const zones = [...(core.zones || []), ...(expansion.zones || [])];
+        const walkableBase = core.walkable || [];
+        const walkableFromZones = extractWalkableFromZones(zones);
+        const walkableFinal = [...walkableBase, ...walkableFromZones];
+        const obstaclesFinal = [
+            ...(core.obstacles || []),
+            ...(expansion.obstacles || [])
+        ];
+
         // Build world model
         worldModel = {
             meta: core.meta,
             size: core.meta.size,
             spawnPoints: core.spawnPoints,
-            walkable: [...(core.walkable || []), ...(expansion.walkable || [])],
-            obstacles: [...(core.obstacles || []), ...(expansion.obstacles || [])],
-            zones: [...(core.zones || []), ...(expansion.zones || [])],
+            walkableBase,
+            walkableFromZones,
+            walkableFinal,
+            walkable: walkableFinal,
+            obstaclesFinal,
+            obstacles: obstaclesFinal,
+            zones,
             decor: [...(core.decor || []), ...(expansion.decor || [])],
             desks: desksData.desks || [],
             deskRules: desksData.deskRules || {},
@@ -117,6 +130,10 @@ export async function loadMaps() {
             worldModel.zoneById.set(zone.id, zone);
         });
 
+        bootLog(`walkableBase: ${walkableBase.length}`);
+        bootLog(`walkableFromZones: ${walkableFromZones.length}`);
+        bootLog(`walkableFinal: ${walkableFinal.length}`);
+        bootLog(`obstaclesFinal: ${obstaclesFinal.length}`);
         bootLog('loadMaps: worldModel ready');
         return worldModel;
     } catch (err) {
@@ -124,6 +141,40 @@ export async function loadMaps() {
         console.error('[loadMaps] FAILED', err);
         throw err;
     }
+}
+
+function extractWalkableFromZones(zones = []) {
+    const walkables = [];
+    zones.forEach(zone => {
+        const bounds = zone?.bounds;
+        if (!bounds) return;
+
+        const isExplicitWalkable = zone.walkable === true;
+        const type = String(zone.type || zone.kind || '').toLowerCase();
+        const id = String(zone.id || '').toLowerCase();
+
+        let isWalkable = false;
+        if (isExplicitWalkable) {
+            isWalkable = true;
+        } else if (type === 'floor') {
+            isWalkable = true;
+        } else if (id.includes('floor') || id.includes('room') || id.includes('desk')) {
+            isWalkable = true;
+            console.warn('[loadMaps] walkableFromZones fallback by id match', zone.id);
+        }
+
+        if (isWalkable) {
+            walkables.push({
+                x: bounds.x,
+                y: bounds.y,
+                w: bounds.w,
+                h: bounds.h,
+                tag: zone.id || 'zone'
+            });
+        }
+    });
+
+    return walkables;
 }
 
 export function getWorldModel() {

@@ -17,10 +17,14 @@ const WALKABLE_MARGIN = 0;
 export function canMoveTo(x, y) {
     const world = getWorldModel();
     if (!world) return false;
+    if (!isInWorldBounds(world, x, y)) return false;
+
+    const walkables = getWalkables(world);
+    if (!walkables || walkables.length === 0) return false;
 
     // Check if inside walkable area (margin = 0 for wider walkable)
     let inWalkable = false;
-    for (const area of world.walkable) {
+    for (const area of walkables) {
         if (isPointInRect(x, y, area, WALKABLE_MARGIN)) {
             inWalkable = true;
             break;
@@ -30,7 +34,8 @@ export function canMoveTo(x, y) {
     if (!inWalkable) return false;
 
     // Check collision with obstacles (still use AVATAR_RADIUS for obstacle collision)
-    for (const obs of world.obstacles) {
+    const obstacles = getObstacles(world);
+    for (const obs of obstacles) {
         if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
             return false;
         }
@@ -48,12 +53,20 @@ export function canMoveTo(x, y) {
 export function canMoveToDebug(x, y) {
     const world = getWorldModel();
     if (!world) return { ok: false, reason: 'no_world' };
+    if (!isInWorldBounds(world, x, y)) {
+        return { ok: false, reason: 'out_of_world' };
+    }
 
     let inWalkable = false;
     let nearestWalkable = null;
     let nearestDist = Infinity;
 
-    for (const area of world.walkable) {
+    const walkables = getWalkables(world);
+    if (!walkables || walkables.length === 0) {
+        return { ok: false, reason: 'no_walkable' };
+    }
+
+    for (const area of walkables) {
         if (isPointInRect(x, y, area, WALKABLE_MARGIN)) {
             inWalkable = true;
             break;
@@ -71,13 +84,14 @@ export function canMoveToDebug(x, y) {
     if (!inWalkable) {
         return {
             ok: false,
-            reason: 'outside_walkable',
+            reason: 'not_in_walkable_final',
             nearestArea: nearestWalkable,
             distance: Math.round(nearestDist)
         };
     }
 
-    for (const obs of world.obstacles) {
+    const obstacles = getObstacles(world);
+    for (const obs of obstacles) {
         if (circleRectCollision(x, y, AVATAR_RADIUS, obs)) {
             return { ok: false, reason: 'hit_obstacle', obstacle: obs.tag || obs };
         }
@@ -116,13 +130,17 @@ function circleRectCollision(cx, cy, r, rect) {
  */
 export function constrainPosition(x, y) {
     const world = getWorldModel();
-    if (!world || world.walkable.length === 0) return { x, y };
+    if (!world) return { x, y };
+    if (!isInWorldBounds(world, x, y)) return { x, y };
 
     const margin = WALKABLE_MARGIN; // Use 0 instead of AVATAR_RADIUS
     let best = null;
     let bestDist = Infinity;
 
-    for (const area of world.walkable) {
+    const walkables = getWalkables(world);
+    if (!walkables || walkables.length === 0) return { x, y };
+
+    for (const area of walkables) {
         // Calculate the nearest point on this walkable rect
         const innerX1 = area.x + margin;
         const innerY1 = area.y + margin;
@@ -185,6 +203,12 @@ export function findPath(fromX, fromY, toX, toY) {
         return { x: toX, y: toY, reason: 'direct' };
     }
 
+    // Snap to nearest walkable point if possible
+    const snap = constrainPosition(toX, toY);
+    if (canMoveTo(snap.x, snap.y)) {
+        return { x: snap.x, y: snap.y, reason: 'snap' };
+    }
+
     // Nearby search fallback, but bias toward the line from current->target (reduces sideways "slip")
     const radii = [24, 48, 72, 96, 120];
     let best = null;
@@ -226,7 +250,7 @@ export function findPath(fromX, fromY, toX, toY) {
         return { x: best.x, y: best.y, reason: `nearby:${best.r}` };
     }
 
-    // Wider neighbor search from constrained point
+    // Wider neighbor search from click point
     const STEP = 16;
     const MAX_R = 320;
 
@@ -264,3 +288,34 @@ export function getZoneAt(x, y) {
 }
 
 export { AVATAR_RADIUS };
+
+let warnedWalkableFallback = false;
+
+function getWalkables(world) {
+    const walkables = world.walkableFinal || world.walkable || [];
+    if (walkables.length > 0) return walkables;
+
+    if (world.zones && world.zones.length > 0) {
+        if (!warnedWalkableFallback) {
+            console.warn('[collision] walkableFinal empty; falling back to zones');
+            warnedWalkableFallback = true;
+        }
+        return world.zones.map(zone => zone.bounds).filter(Boolean);
+    }
+
+    if (!warnedWalkableFallback) {
+        console.warn('[collision] no walkable data available');
+        warnedWalkableFallback = true;
+    }
+    return [];
+}
+
+function getObstacles(world) {
+    return world.obstaclesFinal || world.obstacles || [];
+}
+
+function isInWorldBounds(world, x, y) {
+    const size = world?.meta?.size || world?.size;
+    if (!size) return true;
+    return x >= 0 && y >= 0 && x <= size.w && y <= size.h;
+}

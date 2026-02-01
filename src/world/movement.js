@@ -42,11 +42,13 @@ export function setMoveTarget(x, y) {
 
     const zoneAtClick = getZoneAt(x, y);
     const zoneAtCurrent = getZoneAt(currentPos.x, currentPos.y);
+    const walkableDebug = canMoveToDebug(x, y);
     console.log('[MOVE] click debug', {
         clicked: { x: Math.round(x), y: Math.round(y) },
         isWalkable: canMoveTo(x, y),
         zoneAt: zoneAtClick?.id || null,
-        currentZone: zoneAtCurrent?.id || null
+        currentZone: zoneAtCurrent?.id || null,
+        reason: walkableDebug?.reason || 'ok'
     });
 
     // For debugging: skip collision check if DEBUG_COLLISION is true
