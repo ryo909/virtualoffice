@@ -45,6 +45,15 @@
             }
         }
     ],
+    "walkable": [
+        {
+            "x": 40,
+            "y": 430,
+            "w": 560,
+            "h": 260,
+            "note": "assigned desks floor"
+        }
+    ],
     "decor": [
         {
             "type": "label",
