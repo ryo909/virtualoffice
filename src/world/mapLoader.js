@@ -25,10 +25,12 @@ async function fetchJson(path) {
     // Check content type roughly
     const ct = res.headers.get('content-type') || '';
 
+    // Read text first to ensure we can log it on error
+    const text = await res.text().catch(() => '');
+
     try {
-        return await res.json();
+        return JSON.parse(text);
     } catch (e) {
-        const text = await res.text().catch(() => '');
         throw new Error(`JSON parse failed for ${path}: ${e.message}\nbody(head): ${text.slice(0, 200)}`);
     }
 }
