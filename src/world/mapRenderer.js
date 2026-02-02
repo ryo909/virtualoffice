@@ -22,6 +22,8 @@ let resizeObserver = null;
 // Background image
 let backgroundImage = null;
 let backgroundLoaded = false;
+// Background image source (switchable)
+let backgroundSrc = './assets/maps/map.png'; // default office
 
 // Zoom limits
 const MIN_ZOOM = 0.65;
@@ -45,8 +47,8 @@ export async function initRenderer(canvasElement) {
     ctx = canvas.getContext('2d');
     container = document.getElementById('canvas-container');
 
-    // Load background image
-    await loadMapBackground();
+    // Load background image (do NOT await; avoid blocking boot)
+    loadMapBackground();
 
     // Initial resize (twice for layout settle)
     resizeCanvasToContainer();
@@ -73,16 +75,28 @@ async function loadMapBackground() {
         backgroundImage = new Image();
         backgroundImage.onload = () => {
             backgroundLoaded = true;
-            console.log('[MapRenderer] Background image loaded:', backgroundImage.width, 'x', backgroundImage.height);
+            console.log('[MapRenderer] Background image loaded:', backgroundSrc, backgroundImage.width, 'x', backgroundImage.height);
             resolve();
         };
         backgroundImage.onerror = (err) => {
-            console.warn('[MapRenderer] Failed to load background image, using fallback:', err);
+            console.warn('[MapRenderer] Failed to load background image, using fallback:', backgroundSrc, err);
             backgroundLoaded = false;
             resolve();
         };
-        backgroundImage.src = './assets/maps/map.png';
+        backgroundImage.src = backgroundSrc;
     });
+}
+
+/**
+ * Switch background map image at runtime
+ */
+export function setBackgroundSrc(src) {
+    backgroundSrc = src;
+
+    // kick reload async (non-blocking)
+    loadMapBackground();
+
+    console.log('[MapRenderer] setBackgroundSrc:', backgroundSrc);
 }
 
 /**

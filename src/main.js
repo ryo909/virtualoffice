@@ -3,7 +3,8 @@
 import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
-    updateCamera, applyZoom, setShowDebugSpots, getCamera
+    updateCamera, applyZoom, setShowDebugSpots, getCamera,
+    setBackgroundSrc
 } from './world/mapRenderer.js';
 import {
     initMovement, updateMovement, getCurrentPos,
@@ -586,10 +587,14 @@ export async function initApp(appConfig, session) {
             refreshDeskPanel();
         }
         if (e.key.toLowerCase() === 'g') {
-            // G: Force set move target +200 right
-            const p = getCurrentPos();
-            console.log('[DEBUG] G pressed, setting target +200 right');
-            setMoveTarget(p.x + 200, p.y);
+            // G: switch to garden background
+            console.log('[DEBUG] G pressed -> switch background to garden');
+            setBackgroundSrc('./assets/maps/garden_day.png');
+        }
+        if (e.key.toLowerCase() === 'o') {
+            // O: switch back to office background
+            console.log('[DEBUG] O pressed -> switch background to office');
+            setBackgroundSrc('./assets/maps/map.png');
         }
         if (e.key.toLowerCase() === 'h') {
             // H: Force move position +50 right
