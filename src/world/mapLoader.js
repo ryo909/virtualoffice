@@ -43,16 +43,21 @@ async function fetchJson(path) {
 /**
  * Load all map data and merge into single world model
  */
-export async function loadMaps() {
-    bootLog('loadMaps: start');
+export async function loadMaps(areaKey = 'core') {
+    bootLog(`loadMaps: start (${areaKey})`);
 
     try {
         const mapRequests = [
-            { key: 'core', url: new URL('../../data/maps/map_core.json', import.meta.url).href },
-            { key: 'desks', url: new URL('../../data/maps/map_desks.json', import.meta.url).href },
-            { key: 'expansion', url: new URL('../../data/maps/map_expansion.json', import.meta.url).href },
-            { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href }
+            { key: 'core', url: new URL('../../data/maps/map_core.json', import.meta.url).href }
         ];
+
+        if (areaKey === 'core') {
+            mapRequests.push(
+                { key: 'desks', url: new URL('../../data/maps/map_desks.json', import.meta.url).href },
+                { key: 'expansion', url: new URL('../../data/maps/map_expansion.json', import.meta.url).href },
+                { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href }
+            );
+        }
 
         const settled = await Promise.allSettled(
             mapRequests.map((req) => fetchJson(req.url))
@@ -89,6 +94,55 @@ export async function loadMaps() {
         const spotsData = values.spots;
 
         bootLog('loadMaps: json loaded');
+
+        worldsByArea = new Map();
+
+        if (areaKey === 'garden') {
+            const size = core?.meta?.size || { w: 1024, h: 768, tileSize: 16 };
+            const walkableFinal = [{
+                x: 0,
+                y: 0,
+                w: size.w,
+                h: size.h,
+                tag: 'garden_floor'
+            }];
+            const walkableInflated = mergeWalkables(
+                inflateWalkables(walkableFinal, 4, size),
+                4
+            );
+
+            const gardenWorld = {
+                meta: core?.meta || { size },
+                size,
+                spawnPoints: { lobby: { x: 260, y: 260 }, garden: { x: 260, y: 260 } },
+                walkableBase: walkableFinal,
+                walkableFromZones: [],
+                walkableFinal,
+                walkableInflated,
+                walkable: walkableFinal,
+                worldObstacles: [],
+                deskColliders: [],
+                obstaclesFinal: [],
+                obstacles: [],
+                zones: [],
+                decor: [],
+                desks: [],
+                deskRules: {},
+                rooms: [],
+                spots: []
+            };
+
+            gardenWorld.deskById = new Map();
+            gardenWorld.spotById = new Map();
+            gardenWorld.zoneById = new Map();
+
+            worldModel = gardenWorld;
+            worldsByArea.set('area:garden', gardenWorld);
+            activeAreaId = 'area:garden';
+
+            bootLog('loadMaps: gardenWorld ready (minimal)');
+            return gardenWorld;
+        }
 
         const zones = [
             ...(core.zones || []),
@@ -179,21 +233,6 @@ export async function loadMaps() {
         bootLog(`desks=${officeWorld.desks.length} obstacles=${officeWorld.obstacles.length} walkable=${walkableFinal.length} zones=${zones.length}`);
         console.log('[DEBUG] desk0', officeWorld.desks?.[0]);
         bootLog('loadMaps: officeWorld ready');
-
-        // --- Optional: load garden world (non-fatal)
-        try {
-            const gardenUrl = new URL('../../data/maps/map_garden_day.json', import.meta.url).href;
-            const gardenJson = await fetchJson(gardenUrl);
-            bootLog('loadMaps: garden json loaded');
-
-            const gardenWorld = buildWorldFromSingleMap(gardenJson, spotsData);
-            worldsByArea.set('area:garden', gardenWorld);
-
-            bootLog(`garden: desks=${gardenWorld.desks.length} obstacles=${gardenWorld.obstacles.length} walkable=${gardenWorld.walkableFinal.length} zones=${gardenWorld.zones.length}`);
-        } catch (e) {
-            console.warn('[loadMaps] garden map not loaded (optional):', e);
-            bootLog('loadMaps: garden map skipped (optional)');
-        }
 
         return officeWorld;
     } catch (err) {

@@ -67,9 +67,26 @@ export async function initRenderer(canvasElement) {
     return { canvas, ctx };
 }
 
+function getBasePath() {
+    const pathname = window.location.pathname || '/';
+    if (!pathname || pathname === '/') return '/';
+    const parts = pathname.split('/').filter(Boolean);
+    if (!parts.length) return '/';
+    return `/${parts[0]}/`;
+}
+
 function resolveAssetUrl(path) {
-    const trimmed = String(path || '').replace(/^\//, '');
-    return new URL(trimmed, import.meta.env.BASE_URL).toString();
+    const raw = String(path || '');
+    if (!raw) return raw;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('./') || raw.startsWith('../')) {
+        return new URL(raw, window.location.href).href;
+    }
+    if (raw.startsWith('/')) {
+        const basePath = getBasePath();
+        return `${window.location.origin}${basePath}${raw.slice(1)}`;
+    }
+    return new URL(raw, window.location.href).href;
 }
 
 /**
@@ -84,6 +101,7 @@ export async function setBackgroundSrc(src) {
 
     return new Promise((resolve) => {
         const nextImage = new Image();
+        backgroundLoaded = false;
         nextImage.onload = () => {
             backgroundImage = nextImage;
             backgroundLoaded = true;
@@ -289,7 +307,7 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     ctx.translate(-camera.x, -camera.y);
 
     // === Layer 1: Background Image ===
-    if (backgroundLoaded && backgroundImage) {
+    if (backgroundImage) {
         // Draw background at world origin (0,0), sized to the world
         ctx.drawImage(backgroundImage, 0, 0, world.size.w, world.size.h);
     } else {

@@ -146,7 +146,7 @@ export async function initApp(appConfig, session) {
     // Load maps
     try {
         bootLog('app: calling loadMaps');
-        await loadMaps();
+        await loadMaps('core');
         bootLog('app: loadMaps done');
         clearTimeout(watchdog);
     } catch (err) {
@@ -547,8 +547,8 @@ export async function initApp(appConfig, session) {
     }, { passive: false });
 
     function resolveBgForArea(areaId) {
-        if (areaId === 'area:garden') return '/assets/maps/garden_day.png';
-        return '/assets/maps/map.png'; // office
+        if (areaId === 'area:garden') return './assets/maps/garden_day.png';
+        return './assets/maps/map.png'; // office
     }
 
     function resolveSpawnNameForArea(areaId) {
@@ -556,7 +556,11 @@ export async function initApp(appConfig, session) {
         return 'lobby';
     }
 
-    function switchArea(areaId) {
+    function resolveAreaKey(areaId) {
+        return areaId === 'area:garden' ? 'garden' : 'core';
+    }
+
+    async function switchArea(areaId) {
         try {
             // 1) stop all interactions
             state.ui.selected = null;
@@ -575,6 +579,8 @@ export async function initApp(appConfig, session) {
             prevPosBeforeSit = null;
 
             // 4) switch active world
+            const areaKey = resolveAreaKey(areaId);
+            await loadMaps(areaKey);
             setActiveArea(areaId);
             state.world.areaId = areaId;
             state.world.insideSpotId = null;
@@ -583,10 +589,11 @@ export async function initApp(appConfig, session) {
             const spawnName = resolveSpawnNameForArea(areaId);
             const sp = getSpawnPoint(spawnName);
             teleportTo(sp.x, sp.y);
+            updateCamera(sp.x, sp.y, 16.67);
 
             // 6) update background
             const bg = resolveBgForArea(areaId);
-            setBackgroundSrc(bg);
+            await setBackgroundSrc(bg);
 
             showToast(`Switched: ${areaId}`, 'success');
             console.log('[Area] switched', { areaId, spawnName, sp, bg });
@@ -638,10 +645,10 @@ export async function initApp(appConfig, session) {
         }
         // Area switch (g: garden, o: office)
         if (e.key.toLowerCase() === 'g') {
-            switchArea('area:garden');
+            void switchArea('area:garden');
         }
         if (e.key.toLowerCase() === 'o') {
-            switchArea('area:core');
+            void switchArea('area:core');
         }
     });
 
