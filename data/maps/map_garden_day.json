@@ -1,0 +1,71 @@
+{
+    "meta": {
+        "id": "map:garden_day",
+        "version": 1
+    },
+    "image": {
+        "src": "assets/maps/garden_day.png",
+        "w": 640,
+        "h": 640
+    },
+    "walkable": [
+        {
+            "id": "w:main",
+            "x": 40,
+            "y": 60,
+            "w": 560,
+            "h": 520
+        }
+    ],
+    "obstacles": [
+        {
+            "id": "o:pond_left",
+            "x": 110,
+            "y": 190,
+            "w": 190,
+            "h": 200
+        },
+        {
+            "id": "o:pond_right",
+            "x": 346,
+            "y": 255,
+            "w": 185,
+            "h": 185
+        },
+        {
+            "id": "o:teahouse",
+            "x": 360,
+            "y": 20,
+            "w": 255,
+            "h": 250
+        },
+        {
+            "id": "o:shrine",
+            "x": 230,
+            "y": 70,
+            "w": 190,
+            "h": 150
+        },
+        {
+            "id": "o:bamboo",
+            "x": 25,
+            "y": 360,
+            "w": 235,
+            "h": 210
+        },
+        {
+            "id": "o:south_block",
+            "x": 0,
+            "y": 585,
+            "w": 640,
+            "h": 55
+        }
+    ],
+    "zones": [],
+    "spawnPoints": {
+        "gate": {
+            "x": 320,
+            "y": 540
+        }
+    }
+}

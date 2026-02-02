@@ -37,6 +37,29 @@ export function initMovement(startPos, onMove) {
     isMoving = false;
     onMoveCallback = onMove;
     console.log('[MOVE] initMovement', startPos);
+
+    // Listen for map changes to reset movement
+    window.addEventListener('vo:map-changed', handleMapChange);
+}
+
+function handleMapChange(e) {
+    const { spawn } = e.detail;
+    console.log('[MOVE] map changed, resetting state. Spawn:', spawn);
+
+    // Reset path/target
+    targetPos = null;
+    isMoving = false;
+    lastMoveMeta = null;
+    facing = 'down';
+
+    // Teleport to spawn if provided
+    if (spawn) {
+        currentPos = { x: spawn.x, y: spawn.y };
+    }
+
+    if (onMoveCallback) {
+        onMoveCallback(currentPos, facing, false);
+    }
 }
 
 /**
@@ -323,7 +346,7 @@ export function updateMovement(deltaMs) {
             try {
                 const dbg = canMoveToDebug(tx, ty);
                 console.warn('[MOVE] blocked reason', dbg);
-            } catch (e) {}
+            } catch (e) { }
             break;
         }
 
