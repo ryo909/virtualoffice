@@ -1,6 +1,6 @@
 // main.js - Main application state and logic
 
-import { loadMaps, getSpawnPoint, getSpotById } from './world/mapLoader.js';
+import { loadMaps, getSpawnPoint, getSpotById, setActiveArea } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
     updateCamera, applyZoom, setShowDebugSpots, getCamera,
@@ -546,6 +546,56 @@ export async function initApp(appConfig, session) {
         applyZoom(e.deltaY, screenX, screenY);
     }, { passive: false });
 
+    function resolveBgForArea(areaId) {
+        if (areaId === 'area:garden') return '/assets/maps/garden_day.png';
+        return '/assets/maps/map.png'; // office
+    }
+
+    function resolveSpawnNameForArea(areaId) {
+        if (areaId === 'area:garden') return 'garden';
+        return 'lobby';
+    }
+
+    function switchArea(areaId) {
+        try {
+            // 1) stop all interactions
+            state.ui.selected = null;
+            hideContextPanel();
+            hideSpotModal();
+
+            // 2) movement reset
+            stopMoving();
+
+            // 3) seating/call reset
+            if (state.world.seatedDeskId) {
+                leaveDeskCall();
+            }
+            state.world.seatedDeskId = null;
+            state.world.forcedSeated = false;
+            prevPosBeforeSit = null;
+
+            // 4) switch active world
+            setActiveArea(areaId);
+            state.world.areaId = areaId;
+            state.world.insideSpotId = null;
+
+            // 5) teleport to spawn
+            const spawnName = resolveSpawnNameForArea(areaId);
+            const sp = getSpawnPoint(spawnName);
+            teleportTo(sp.x, sp.y);
+
+            // 6) update background
+            const bg = resolveBgForArea(areaId);
+            setBackgroundSrc(bg);
+
+            showToast(`Switched: ${areaId}`, 'success');
+            console.log('[Area] switched', { areaId, spawnName, sp, bg });
+        } catch (e) {
+            console.error('[Area] switch failed', e);
+            showToast('Area switch failed', 'error');
+        }
+    }
+
     // Keyboard handler
     const keys = { up: false, down: false, left: false, right: false, w: false, a: false, s: false, d: false };
 
@@ -586,20 +636,12 @@ export async function initApp(appConfig, session) {
             }
             refreshDeskPanel();
         }
+        // Area switch (g: garden, o: office)
         if (e.key.toLowerCase() === 'g') {
-            // G: switch to garden background
-            console.log('[DEBUG] G pressed -> switch background to garden');
-            setBackgroundSrc('./assets/maps/garden_day.png');
+            switchArea('area:garden');
         }
         if (e.key.toLowerCase() === 'o') {
-            // O: switch back to office background
-            console.log('[DEBUG] O pressed -> switch background to office');
-            setBackgroundSrc('./assets/maps/map.png');
-        }
-        if (e.key.toLowerCase() === 'h') {
-            // H: Force move position +50 right
-            console.log('[DEBUG] H pressed, force moving +50 right');
-            forceMove(50, 0);
+            switchArea('area:core');
         }
     });
 
