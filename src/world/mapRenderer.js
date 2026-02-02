@@ -1,6 +1,6 @@
 // mapRenderer.js - Canvas rendering for the map (Pixel Illustration Style)
 
-import { getWorldModel, getDesks, getSpots, getBackgroundImageSrc } from './mapLoader.js';
+import { getWorldModel, getDesks, getSpots } from './mapLoader.js';
 import { getConfig } from '../services/supabaseClient.js';
 import { AVATAR_RADIUS } from './collision.js';
 
@@ -13,7 +13,6 @@ import { drawDecorItems } from '../render/drawDecor.js';
 import { renderPixelAvatar, renderNameTag, updateAnimation, getAnimationState } from '../avatar/pixelSpriteRenderer.js';
 
 let canvas = null;
-
 let ctx = null;
 let container = null;
 let camera = { x: 0, y: 0, zoom: 1 };
@@ -23,7 +22,6 @@ let resizeObserver = null;
 // Background image
 let backgroundImage = null;
 let backgroundLoaded = false;
-let currentBgSrc = '';
 
 // Zoom limits
 const MIN_ZOOM = 0.65;
@@ -83,8 +81,7 @@ async function loadMapBackground() {
             backgroundLoaded = false;
             resolve();
         };
-        backgroundImage.src = getBackgroundImageSrc();
-        currentBgSrc = backgroundImage.src;
+        backgroundImage.src = './assets/maps/map.png';
     });
 }
 
@@ -263,32 +260,59 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
 
     const world = getWorldModel();
     if (!world) return;
-    drawDebugSpots();
-}
 
-// === Layer 3: Click marker ===
-if (clickMarker) {
-    drawClickMarkerPixel(clickMarker.x, clickMarker.y, clickMarkerTime);
-}
+    // === Layer 0: Clear canvas ===
+    ctx.fillStyle = '#2a2520';
+    ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
 
-// === Layer 4: Other players (pixel avatars) ===
-otherPlayers.forEach(player => {
-    const state = getAnimationState(player.actorId || player.displayName);
-    renderPixelAvatar(ctx, player.pos.x, player.pos.y, player.displayName, state, camera.zoom, false);
-    renderNameTag(ctx, player.pos.x, player.pos.y, player.displayName, player.status, camera.zoom);
-});
+    ctx.save();
 
-// === Layer 5: Current player (pixel avatar) ===
-const playerState = getAnimationState(me.actorId || 'me');
-renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
-renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
+    // Apply zoom and camera transform
+    const cx = canvasSize.w / 2;
+    const cy = canvasSize.h / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
 
-// === Debug collision overlays ===
-if (window.DEBUG_COLLISION) {
-    drawCollisionDebug(world, playerPos);
-}
+    // === Layer 1: Background Image ===
+    if (backgroundLoaded && backgroundImage) {
+        // Draw background at world origin (0,0), sized to the world
+        ctx.drawImage(backgroundImage, 0, 0, world.size.w, world.size.h);
+    } else {
+        // Fallback: solid color
+        ctx.fillStyle = '#e8e4dc';
+        ctx.fillRect(0, 0, world.size.w, world.size.h);
+    }
 
-ctx.restore();
+    // === Layer 2: Action Spots visualization (optional, for debugging) ===
+    // drawActionSpots();
+    if (showDebugSpots) {
+        drawDebugSpots();
+    }
+
+    // === Layer 3: Click marker ===
+    if (clickMarker) {
+        drawClickMarkerPixel(clickMarker.x, clickMarker.y, clickMarkerTime);
+    }
+
+    // === Layer 4: Other players (pixel avatars) ===
+    otherPlayers.forEach(player => {
+        const state = getAnimationState(player.actorId || player.displayName);
+        renderPixelAvatar(ctx, player.pos.x, player.pos.y, player.displayName, state, camera.zoom, false);
+        renderNameTag(ctx, player.pos.x, player.pos.y, player.displayName, player.status, camera.zoom);
+    });
+
+    // === Layer 5: Current player (pixel avatar) ===
+    const playerState = getAnimationState(me.actorId || 'me');
+    renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
+    renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
+
+    // === Debug collision overlays ===
+    if (window.DEBUG_COLLISION) {
+        drawCollisionDebug(world, playerPos);
+    }
+
+    ctx.restore();
 }
 
 /**

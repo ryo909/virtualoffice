@@ -49,8 +49,7 @@ export async function loadMaps() {
             { key: 'core', url: new URL('../../data/maps/map_core.json', import.meta.url).href },
             { key: 'desks', url: new URL('../../data/maps/map_desks.json', import.meta.url).href },
             { key: 'expansion', url: new URL('../../data/maps/map_expansion.json', import.meta.url).href },
-            { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href },
-            { key: 'garden', url: new URL('../../data/maps/map_garden_day.json', import.meta.url).href }
+            { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href }
         ];
 
         const settled = await Promise.allSettled(
@@ -138,27 +137,6 @@ export async function loadMaps() {
             rooms: expansion.rooms || [],
             spots: (spotsData && spotsData.spots) ? spotsData.spots : []
         };
-
-        // --- build maps catalog (office + garden)
-        const officeSnapshot = snapshotActiveMap(worldModel, {
-            mapId: 'map:office1',
-            imageSrc: 'assets/maps/map_core.png'
-        });
-        const gardenSnapshot = buildGardenSnapshot(values.garden);
-
-        worldModel.maps = {
-            'map:office1': officeSnapshot,
-            'map:garden_day': gardenSnapshot
-        };
-        worldModel.activeMapId = 'map:office1';
-        worldModel.backgroundImageSrc = officeSnapshot.imageSrc;
-
-        // Apply office once via applyMap() so both maps use the same path
-        applyMap('map:office1', 'lobby', { emitEvent: false });
-
-        // Debug helpers
-        window.__goGarden = () => applyMap('map:garden_day', 'gate');
-        window.__goOffice = () => applyMap('map:office1', 'lobby');
 
         // Create lookup maps
         worldModel.deskById = new Map();
@@ -489,153 +467,4 @@ export function getSpotById(id) {
 
 export function getZones() {
     return worldModel?.zones || [];
-}
-
-// -------------------------------
-// Map switching (multi-map)
-// -------------------------------
-
-function snapshotActiveMap(model, { mapId, imageSrc }) {
-    return {
-        mapId,
-        imageSrc,
-        meta: model.meta,
-        size: model.size,
-        spawnPoints: model.spawnPoints,
-
-        // movement/collision
-        walkableBase: model.walkableBase || [],
-        walkableFromZones: model.walkableFromZones || [],
-        walkableFinal: model.walkableFinal || (model.walkable || []),
-        walkableInflated: model.walkableInflated || [],
-        walkable: model.walkable || [],
-
-        worldObstacles: model.worldObstacles || [],
-        deskColliders: model.deskColliders || [],
-        obstaclesFinal: model.obstaclesFinal || [],
-        obstacles: model.obstacles || [],
-
-        zones: model.zones || [],
-        decor: model.decor || [],
-
-        // interactions
-        desks: model.desks || [],
-        deskRules: model.deskRules || {},
-        rooms: model.rooms || [],
-        spots: model.spots || []
-    };
-}
-
-function buildGardenSnapshot(gardenJson) {
-    const size = gardenJson?.image
-        ? { w: gardenJson.image.w || 640, h: gardenJson.image.h || 640, tileSize: 16 }
-        : { w: 640, h: 640, tileSize: 16 };
-
-    const zones = gardenJson?.zones || [];
-    const walkableBase = gardenJson?.walkable || [];
-    const walkableFromZones = extractWalkableFromZones(zones);
-    const walkableFinal = [...walkableBase, ...walkableFromZones];
-
-    const pad = 4;
-    const walkableInflated = mergeWalkables(inflateWalkables(walkableFinal, pad, size), pad);
-
-    const worldObstacles = (gardenJson?.obstacles || []).map(o => ({ ...o, source: 'world' }));
-
-    const meta = gardenJson?.meta || { id: 'map:garden_day', version: 1 };
-    const imageSrc = gardenJson?.image?.src || 'assets/maps/garden_day.png';
-
-    return {
-        mapId: 'map:garden_day',
-        imageSrc,
-        meta,
-        size,
-        spawnPoints: gardenJson?.spawnPoints || { gate: { x: 320, y: 540 } },
-
-        walkableBase,
-        walkableFromZones,
-        walkableFinal,
-        walkableInflated,
-        walkable: walkableFinal,
-
-        worldObstacles,
-        deskColliders: [],
-        obstaclesFinal: worldObstacles,
-        obstacles: worldObstacles,
-
-        zones,
-        decor: gardenJson?.decor || [],
-
-        desks: [],
-        deskRules: {},
-        rooms: [],
-        spots: []
-    };
-}
-
-/**
- * Switch active map by mapId.
- * Overwrites worldModel fields used by movement/collision/rendering/interaction.
- * Emits 'vo:map-changed' event by default.
- */
-export function applyMap(mapId, spawnName = null, opts = { emitEvent: true }) {
-    if (!worldModel?.maps?.[mapId]) {
-        console.warn('[applyMap] unknown mapId', mapId, worldModel?.maps);
-        return false;
-    }
-
-    const m = worldModel.maps[mapId];
-    worldModel.activeMapId = mapId;
-
-    worldModel.meta = m.meta;
-    worldModel.size = m.size;
-
-    worldModel.spawnPoints = m.spawnPoints;
-
-    worldModel.walkableBase = m.walkableBase;
-    worldModel.walkableFromZones = m.walkableFromZones;
-    worldModel.walkableFinal = m.walkableFinal;
-    worldModel.walkableInflated = m.walkableInflated;
-    worldModel.walkable = m.walkable;
-
-    worldModel.worldObstacles = m.worldObstacles;
-    worldModel.deskColliders = m.deskColliders;
-    worldModel.obstaclesFinal = m.obstaclesFinal;
-    worldModel.obstacles = m.obstacles;
-
-    worldModel.zones = m.zones;
-    worldModel.decor = m.decor;
-
-    worldModel.desks = m.desks;
-    worldModel.deskRules = m.deskRules;
-    worldModel.rooms = m.rooms;
-    worldModel.spots = m.spots;
-
-    // rebuild lookups (avoid leaking office ids into garden)
-    worldModel.deskById = new Map();
-    (worldModel.desks || []).forEach(d => worldModel.deskById.set(d.id, d));
-
-    worldModel.spotById = new Map();
-    (worldModel.spots || []).forEach(s => worldModel.spotById.set(s.id, s));
-
-    worldModel.zoneById = new Map();
-    (worldModel.zones || []).forEach(z => worldModel.zoneById.set(z.id, z));
-
-    // background image
-    worldModel.backgroundImageSrc = m.imageSrc;
-
-    // select spawn
-    const spawnKey = spawnName || Object.keys(worldModel.spawnPoints || {})[0] || 'lobby';
-    const sp = getSpawnPoint(spawnKey);
-
-    if (opts?.emitEvent !== false) {
-        window.dispatchEvent(new CustomEvent('vo:map-changed', {
-            detail: { mapId, spawnKey, spawn: sp, backgroundImageSrc: worldModel.backgroundImageSrc }
-        }));
-    }
-
-    return true;
-}
-
-export function getBackgroundImageSrc() {
-    return worldModel?.backgroundImageSrc || 'assets/maps/map_core.png';
 }
