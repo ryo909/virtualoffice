@@ -3,6 +3,8 @@
 import { furniture } from './mapStyles.js';
 
 let worldModel = null;
+let worldsByArea = new Map();
+let activeAreaId = 'area:core';
 
 // Helper for boot logging
 function bootLog(msg) {
@@ -116,8 +118,8 @@ export async function loadMaps() {
             .map(obs => ({ ...obs, source: 'world' }));
         const deskColliders = buildDeskColliders(normalizedDesks);
 
-        // Build world model
-        worldModel = {
+        // Build office world model
+        const officeWorld = {
             meta: core.meta,
             size: core.meta.size,
             spawnPoints: core.spawnPoints,
@@ -139,20 +141,24 @@ export async function loadMaps() {
         };
 
         // Create lookup maps
-        worldModel.deskById = new Map();
-        worldModel.desks.forEach(desk => {
-            worldModel.deskById.set(desk.id, desk);
+        officeWorld.deskById = new Map();
+        officeWorld.desks.forEach(desk => {
+            officeWorld.deskById.set(desk.id, desk);
         });
 
-        worldModel.spotById = new Map();
-        worldModel.spots.forEach(spot => {
-            worldModel.spotById.set(spot.id, spot);
+        officeWorld.spotById = new Map();
+        officeWorld.spots.forEach(spot => {
+            officeWorld.spotById.set(spot.id, spot);
         });
 
-        worldModel.zoneById = new Map();
-        worldModel.zones.forEach(zone => {
-            worldModel.zoneById.set(zone.id, zone);
+        officeWorld.zoneById = new Map();
+        officeWorld.zones.forEach(zone => {
+            officeWorld.zoneById.set(zone.id, zone);
         });
+
+        worldModel = officeWorld;
+        worldsByArea.set('area:core', officeWorld);
+        activeAreaId = 'area:core';
 
         bootLog(`walkableBase: ${walkableBase.length}`);
         bootLog(`walkableFromZones: ${walkableFromZones.length}`);
@@ -166,19 +172,90 @@ export async function loadMaps() {
         bootLog(`deskColliders count: ${deskColliders.length}`);
         bootLog(`zones count: ${zones.length}`);
         bootLog(`walkableFromZones count: ${walkableFromZones.length}`);
-        bootLog(`desks count: ${worldModel.desks.length}`);
-        bootLog(`obstacles merged: ${worldModel.obstacles.length}`);
+        bootLog(`desks count: ${officeWorld.desks.length}`);
+        bootLog(`obstacles merged: ${officeWorld.obstacles.length}`);
         bootLog(`walkable merged: ${walkableFinal.length}`);
         bootLog(`zones merged: ${zones.length}`);
-        bootLog(`desks=${worldModel.desks.length} obstacles=${worldModel.obstacles.length} walkable=${walkableFinal.length} zones=${zones.length}`);
-        console.log('[DEBUG] desk0', worldModel.desks?.[0]);
-        bootLog('loadMaps: worldModel ready');
-        return worldModel;
+        bootLog(`desks=${officeWorld.desks.length} obstacles=${officeWorld.obstacles.length} walkable=${walkableFinal.length} zones=${zones.length}`);
+        console.log('[DEBUG] desk0', officeWorld.desks?.[0]);
+        bootLog('loadMaps: officeWorld ready');
+
+        // --- Optional: load garden world (non-fatal)
+        try {
+            const gardenUrl = new URL('../../data/maps/map_garden_day.json', import.meta.url).href;
+            const gardenJson = await fetchJson(gardenUrl);
+            bootLog('loadMaps: garden json loaded');
+
+            const gardenWorld = buildWorldFromSingleMap(gardenJson, spotsData);
+            worldsByArea.set('area:garden', gardenWorld);
+
+            bootLog(`garden: desks=${gardenWorld.desks.length} obstacles=${gardenWorld.obstacles.length} walkable=${gardenWorld.walkableFinal.length} zones=${gardenWorld.zones.length}`);
+        } catch (e) {
+            console.warn('[loadMaps] garden map not loaded (optional):', e);
+            bootLog('loadMaps: garden map skipped (optional)');
+        }
+
+        return officeWorld;
     } catch (err) {
         bootLog(`loadMaps: FAILED -> ${err.message}`);
         console.error('[loadMaps] FAILED', err);
         throw err;
     }
+}
+
+function buildWorldFromSingleMap(single, spotsData) {
+    const meta = single.meta || { size: single.size };
+    const size = meta?.size || single.size;
+
+    const zones = single.zones || [];
+    const walkableBase = single.walkable || single.walkableBase || [];
+    const walkableFromZones = extractWalkableFromZones(zones);
+    const walkableFinal = [...walkableBase, ...walkableFromZones];
+    const walkableInflated = mergeWalkables(
+        inflateWalkables(walkableFinal, 4, size),
+        4
+    );
+
+    const normalizedDesks = normalizeDesks(single.desks || [], size, null);
+
+    const obstaclesFinal = single.obstacles || [];
+    const worldObstacles = obstaclesFinal
+        .filter(obs => !isDeskObstacle(obs))
+        .map(obs => ({ ...obs, source: 'world' }));
+
+    const deskColliders = buildDeskColliders(normalizedDesks);
+
+    const world = {
+        meta,
+        size,
+        spawnPoints: single.spawnPoints || { lobby: { x: 260, y: 260 } },
+        walkableBase,
+        walkableFromZones,
+        walkableFinal,
+        walkableInflated,
+        walkable: walkableFinal,
+        worldObstacles,
+        deskColliders,
+        obstaclesFinal: [...worldObstacles, ...deskColliders],
+        obstacles: [...worldObstacles, ...deskColliders],
+        zones,
+        decor: single.decor || [],
+        desks: normalizedDesks,
+        deskRules: single.deskRules || {},
+        rooms: single.rooms || [],
+        spots: (single.spots && Array.isArray(single.spots)) ? single.spots : ((spotsData && spotsData.spots) ? spotsData.spots : [])
+    };
+
+    world.deskById = new Map();
+    world.desks.forEach(d => world.deskById.set(d.id, d));
+
+    world.spotById = new Map();
+    world.spots.forEach(s => world.spotById.set(s.id, s));
+
+    world.zoneById = new Map();
+    world.zones.forEach(z => world.zoneById.set(z.id, z));
+
+    return world;
 }
 
 function extractWalkableFromZones(zones = []) {
@@ -441,30 +518,46 @@ function getAssignedDesksFloorRect(desksData) {
 }
 
 export function getWorldModel() {
+    if (worldsByArea?.has(activeAreaId)) return worldsByArea.get(activeAreaId);
     return worldModel;
 }
 
 export function getSpawnPoint(name = 'lobby') {
-    if (!worldModel) return { x: 260, y: 260 };
-    return worldModel.spawnPoints[name] || worldModel.spawnPoints.lobby || { x: 260, y: 260 };
+    const w = getWorldModel();
+    if (!w) return { x: 260, y: 260 };
+    return w.spawnPoints?.[name] || w.spawnPoints?.lobby || { x: 260, y: 260 };
 }
 
 export function getDesks() {
-    return worldModel?.desks || [];
+    return getWorldModel()?.desks || [];
 }
 
 export function getDeskById(id) {
-    return worldModel?.deskById.get(id) || null;
+    return getWorldModel()?.deskById?.get(id) || null;
 }
 
 export function getSpots() {
-    return worldModel?.spots || [];
+    return getWorldModel()?.spots || [];
 }
 
 export function getSpotById(id) {
-    return worldModel?.spotById.get(id) || null;
+    return getWorldModel()?.spotById?.get(id) || null;
 }
 
 export function getZones() {
-    return worldModel?.zones || [];
+    return getWorldModel()?.zones || [];
+}
+
+export function setActiveArea(areaId) {
+    if (worldsByArea?.has(areaId)) {
+        activeAreaId = areaId;
+        bootLog(`setActiveArea: ${areaId}`);
+    } else {
+        console.warn('[mapLoader] setActiveArea failed (unknown areaId):', areaId);
+        bootLog(`setActiveArea: FAILED unknown ${areaId}`);
+    }
+}
+
+export function getActiveArea() {
+    return activeAreaId;
 }

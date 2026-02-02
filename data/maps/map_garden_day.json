@@ -1,0 +1,9 @@
+{
+  "meta": { "id": "map:garden_day", "version": 1, "size": { "w": 1024, "h": 768, "tileSize": 16 } },
+  "spawnPoints": { "lobby": { "x": 260, "y": 260 }, "garden": { "x": 260, "y": 260 } },
+  "walkable": [ { "x": 0, "y": 0, "w": 1024, "h": 768, "tag": "garden_floor" } ],
+  "obstacles": [],
+  "zones": [],
+  "decor": [],
+  "desks": []
+}
