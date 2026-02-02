@@ -23,7 +23,7 @@ let resizeObserver = null;
 let backgroundImage = null;
 let backgroundLoaded = false;
 // Background image source (switchable)
-let backgroundSrc = './assets/maps/map.png'; // default office
+let backgroundSrc = '/assets/maps/map.png'; // default office
 
 // Zoom limits
 const MIN_ZOOM = 0.65;
@@ -47,8 +47,8 @@ export async function initRenderer(canvasElement) {
     ctx = canvas.getContext('2d');
     container = document.getElementById('canvas-container');
 
-    // Load background image (do NOT await; avoid blocking boot)
-    loadMapBackground();
+    // Load background image
+    await setBackgroundSrc('/assets/maps/map.png');
 
     // Initial resize (twice for layout settle)
     resizeCanvasToContainer();
@@ -67,36 +67,36 @@ export async function initRenderer(canvasElement) {
     return { canvas, ctx };
 }
 
-/**
- * Load the background map image
- */
-async function loadMapBackground() {
-    return new Promise((resolve) => {
-        backgroundImage = new Image();
-        backgroundImage.onload = () => {
-            backgroundLoaded = true;
-            console.log('[MapRenderer] Background image loaded:', backgroundSrc, backgroundImage.width, 'x', backgroundImage.height);
-            resolve();
-        };
-        backgroundImage.onerror = (err) => {
-            console.warn('[MapRenderer] Failed to load background image, using fallback:', backgroundSrc, err);
-            backgroundLoaded = false;
-            resolve();
-        };
-        backgroundImage.src = backgroundSrc;
-    });
+function resolveAssetUrl(path) {
+    const trimmed = String(path || '').replace(/^\//, '');
+    return new URL(trimmed, import.meta.env.BASE_URL).toString();
 }
 
 /**
  * Switch background map image at runtime
  */
-export function setBackgroundSrc(src) {
+export async function setBackgroundSrc(src) {
+    if (!src) return;
+    if (src === backgroundSrc && backgroundLoaded) return;
+
     backgroundSrc = src;
+    const resolvedSrc = resolveAssetUrl(src);
 
-    // kick reload async (non-blocking)
-    loadMapBackground();
-
-    console.log('[MapRenderer] setBackgroundSrc:', backgroundSrc);
+    return new Promise((resolve) => {
+        const nextImage = new Image();
+        nextImage.onload = () => {
+            backgroundImage = nextImage;
+            backgroundLoaded = true;
+            console.log('[MapRenderer] Background image loaded:', backgroundSrc, nextImage.width, 'x', nextImage.height);
+            resolve();
+        };
+        nextImage.onerror = (err) => {
+            backgroundLoaded = false;
+            console.warn('[MapRenderer] Failed to load background image, using fallback:', backgroundSrc, err);
+            resolve();
+        };
+        nextImage.src = resolvedSrc;
+    });
 }
 
 /**
