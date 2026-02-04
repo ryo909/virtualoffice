@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "tracks": [
+        {
+            "title": "竜宮城",
+            "src": "/virtualoffice/assets/bgm/ryugujo.mp3"
+        },
+        {
+            "title": "篝火のお宿",
+            "src": "/virtualoffice/assets/bgm/kagaribi_no_yado.mp3"
+        },
+        {
+            "title": "温泉街の夕べ",
+            "src": "/virtualoffice/assets/bgm/onsengai_no_yube.mp3"
+        },
+        {
+            "title": "野山",
+            "src": "/virtualoffice/assets/bgm/noyama.mp3"
+        },
+        {
+            "title": "里の古桜",
+            "src": "/virtualoffice/assets/bgm/sato_no_kosakura.mp3"
+        }
+    ]
+}
