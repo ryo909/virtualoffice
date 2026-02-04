@@ -34,7 +34,13 @@ import { initIncomingCallModal, showIncomingCallModal, hideIncomingCallModal } f
 import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings, updateDeskPanel } from './ui/panel.context.js';
 import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, isSpotModalVisible } from './ui/modal.spot.js';
 import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } from './ui/modal.admin.js';
+import { initBgmModal, showBgmModal, hideBgmModal } from './ui/modal.bgm.js';
+import { initBgm, unlockAudio, playBgm, stopBgm } from './audio/bgmManager.js';
+import { GARDEN_BGM, DEFAULT_GARDEN_BGM_ID } from './audio/bgmCatalog.js';
 import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
+import { loadGardenBgm } from './data/bgmLoader.js';
+import { getGardenTracks, setGardenTracks, getGardenTitle, setGardenTitle } from './data/bgmTracks.js';
+import { resolveGardenTracks } from './data/gardenBgmTracks.js';
 
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
@@ -104,6 +110,35 @@ const debug = {
     lastWorldPos: null,
     canMoveTo: null
 };
+
+function resolveGardenTracksSafe() {
+    let tracks = [];
+    try {
+        const fromStore = getGardenTracks?.() ?? [];
+        if (fromStore.length) return fromStore;
+    } catch (err) {
+        console.warn('[BGM] getGardenTracks failed', err);
+    }
+
+    try {
+        const base = window?.APP_BASE_URL || window?.BASE_URL || '/virtualoffice';
+        tracks = (typeof resolveGardenTracks === 'function') ? resolveGardenTracks(base) : [];
+    } catch (err) {
+        console.warn('[BGM] resolveGardenTracks failed; continue without BGM', err);
+        tracks = [];
+    }
+
+    return tracks;
+}
+
+function resolveGardenTitleSafe() {
+    try {
+        return getGardenTitle?.() || 'Garden BGM';
+    } catch (err) {
+        console.warn('[BGM] getGardenTitle failed', err);
+        return 'Garden BGM';
+    }
+}
 
 // ========== Initialization ==========
 export async function initApp(appConfig, session) {
@@ -360,11 +395,22 @@ export async function initApp(appConfig, session) {
 
     // Initialize spot modal
     initSpotModal();
+    initBgm();
+    initBgmModal();
+    applyAreaBgm(state.world.areaId);
     initAdminModal();
 
     // Load dynamic content
     loadGallery();
     loadNews();
+    loadGardenBgm()
+        .then(data => {
+            setGardenTracks(data?.tracks || []);
+            setGardenTitle(data?.title || 'Garden BGM');
+        })
+        .catch((err) => {
+            console.warn('[BGM] failed to load garden.json', err);
+        });
 
     // Initialize call modules
     initCallStateMachine((callState, prevState) => {
@@ -477,6 +523,8 @@ export async function initApp(appConfig, session) {
         // Skip if clicking on UI elements
         if (isUiClick(e.target)) return;
 
+        unlockAudio();
+
         // Prevent default to avoid scroll/zoom on touch
         e.preventDefault();
 
@@ -488,6 +536,10 @@ export async function initApp(appConfig, session) {
 
         // Convert to world coordinates
         const worldPos = screenToWorld(rectX, rectY);
+
+        if (e.shiftKey) {
+            console.log('[COORD]', { x: Math.round(worldPos.x), y: Math.round(worldPos.y) });
+        }
 
         console.log('[MOVE] click received', {
             seated: state.world.seatedDeskId != null,
@@ -560,12 +612,38 @@ export async function initApp(appConfig, session) {
         return areaId === 'area:garden' ? 'garden' : 'core';
     }
 
+    function findGardenTrack(trackId) {
+        return resolveGardenTracksSafe().find(track => track.id === trackId) || null;
+    }
+
+    function applyAreaBgm(areaId) {
+        if (areaId === 'area:garden') {
+            const stored = localStorage.getItem('bgm:garden:selected');
+            const selectedId = stored && stored.length ? stored : DEFAULT_GARDEN_BGM_ID;
+
+            if (selectedId === 'none') {
+                stopBgm();
+                return;
+            }
+
+            const track = findGardenTrack(selectedId) || findGardenTrack(DEFAULT_GARDEN_BGM_ID);
+            if (track) {
+                playBgm(track.src || track.url);
+            }
+        } else {
+            stopBgm();
+        }
+    }
+
     async function switchArea(areaId) {
         try {
             // 1) stop all interactions
             state.ui.selected = null;
+            state.queuedAction = null;
+            state.world.insideSpotId = null;
             hideContextPanel();
             hideSpotModal();
+            hideBgmModal();
 
             // 2) movement reset
             stopMoving();
@@ -583,7 +661,6 @@ export async function initApp(appConfig, session) {
             await loadMaps(areaKey);
             setActiveArea(areaId);
             state.world.areaId = areaId;
-            state.world.insideSpotId = null;
 
             // 5) teleport to spawn
             const spawnName = resolveSpawnNameForArea(areaId);
@@ -594,6 +671,9 @@ export async function initApp(appConfig, session) {
             // 6) update background
             const bg = resolveBgForArea(areaId);
             await setBackgroundSrc(bg);
+
+            // 7) update BGM state
+            applyAreaBgm(areaId);
 
             showToast(`Switched: ${areaId}`, 'success');
             console.log('[Area] switched', { areaId, spawnName, sp, bg });
@@ -892,6 +972,33 @@ function handleSpotAction(action, spot) {
             const news = getNews();
             showBulletinModal(action.title || 'Bulletin', news?.items || []);
             break;
+        case 'openBgmSelector': {
+            const stored = localStorage.getItem('bgm:garden:selected');
+            const selectedId = stored && stored.length ? stored : DEFAULT_GARDEN_BGM_ID;
+            let hasLoaded = false;
+            try {
+                hasLoaded = (getGardenTracks?.() ?? []).length > 0;
+            } catch (err) {
+                console.warn('[BGM] getGardenTracks failed', err);
+                hasLoaded = false;
+            }
+            if (!hasLoaded) {
+                loadGardenBgm()
+                    .then((data) => {
+                        setGardenTracks(data?.tracks || []);
+                        setGardenTitle(data?.title || 'Garden BGM');
+                        showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
+                    })
+                    .catch((err) => {
+                        console.warn('[BGM] failed to load garden.json', err);
+                        showToast('BGMデータの読み込みに失敗しました', 'error');
+                        showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
+                    });
+                break;
+            }
+            showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
+            break;
+        }
         case 'openAdmin':
             // Proximity check
             const proximity = spot?.proximity || 90;

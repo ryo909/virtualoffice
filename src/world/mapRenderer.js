@@ -413,8 +413,13 @@ function drawCollisionDebug(world, playerPos) {
         // World obstacles (orange)
         ctx.strokeStyle = 'rgba(251, 146, 60, 0.9)';
         ctx.lineWidth = 2;
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.95)';
+        ctx.font = '12px sans-serif';
         worldObstacles.forEach(obs => {
             ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+            if (obs.tag) {
+                ctx.fillText(String(obs.tag), obs.x + 4, obs.y + 14);
+            }
         });
     }
 

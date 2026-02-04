@@ -3,6 +3,7 @@
     "spots": [
         {
             "id": "spot:meeting_a",
+            "areaId": "area:core",
             "kind": "zoom_room",
             "label": "Meeting A",
             "roomKey": "meeting_a",
@@ -24,6 +25,7 @@
         },
         {
             "id": "spot:meeting_b",
+            "areaId": "area:core",
             "kind": "zoom_room",
             "label": "Meeting B",
             "roomKey": "meeting_b",
@@ -45,6 +47,7 @@
         },
         {
             "id": "spot:gallery-links",
+            "areaId": "area:core",
             "kind": "action_spot",
             "label": "My Tools",
             "zoneId": "area:gallery",
@@ -69,6 +72,7 @@
         },
         {
             "id": "spot:bulletin-feed",
+            "areaId": "area:core",
             "kind": "action_spot",
             "label": "News Wall",
             "zoneId": "area:bulletin",
@@ -83,6 +87,7 @@
         },
         {
             "id": "spot:admin",
+            "areaId": "area:core",
             "kind": "action_spot",
             "label": "Admin",
             "zoneId": "area:lobby",

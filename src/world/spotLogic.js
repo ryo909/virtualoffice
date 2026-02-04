@@ -1,6 +1,6 @@
 // spotLogic.js - Spot interaction logic
 
-import { getSpots, getDesks, getSpotById, getDeskById } from './mapLoader.js';
+import { getSpots, getDesks, getSpotById, getDeskById, getActiveArea } from './mapLoader.js';
 
 const SPOT_ENTER_DISTANCE = 30;
 const DESK_SIT_DISTANCE = 40;
@@ -21,8 +21,10 @@ const DESK_SIT_DISTANCE = 40;
 export function getSortedSpotsAt(x, y) {
     const spots = getSpots();
     const hits = [];
+    const areaId = getActiveArea();
 
     for (const spot of spots) {
+        if (spot?.areaId !== areaId) continue;
         // Check radius-based spot (action spots)
         if (spot.x !== undefined && spot.y !== undefined && spot.r !== undefined) {
             const dx = x - spot.x;

@@ -1,0 +1,40 @@
+{
+    "meta": {
+        "id": "map:garden",
+        "version": 1,
+        "size": {
+            "w": 640,
+            "h": 640
+        }
+    },
+    "spawnPoints": {
+        "lobby": { "x": 320, "y": 480 },
+        "garden": { "x": 319, "y": 599 }
+    },
+    "walkable": [
+        { "type": "rect", "x": 0, "y": 0, "w": 640, "h": 640, "tag": "garden_floor" }
+    ],
+    "obstacles": [
+        { "type": "rect", "x": 0, "y": 0, "w": 640, "h": 20, "tag": "garden:wall_north" },
+        { "type": "rect", "x": 0, "y": 620, "w": 640, "h": 20, "tag": "garden:wall_south" },
+        { "type": "rect", "x": 0, "y": 0, "w": 20, "h": 640, "tag": "garden:wall_west" },
+        { "type": "rect", "x": 620, "y": 0, "w": 20, "h": 640, "tag": "garden:wall_east" },
+        { "type": "rect", "x": 104, "y": 230, "w": 176, "h": 126, "tag": "garden:pond_left" },
+        { "type": "rect", "x": 362, "y": 254, "w": 176, "h": 126, "tag": "garden:pond_right" }
+    ],
+    "zones": [],
+    "decor": [],
+    "desks": [],
+    "spots": [
+        {
+            "id": "spot:garden_shrine",
+            "areaId": "area:garden",
+            "kind": "action_spot",
+            "label": "Shrine Audio",
+            "priority": 20,
+            "bounds": { "x": 271, "y": 79, "w": 100, "h": 100 },
+            "interactPoint": { "x": 321, "y": 129 },
+            "action": { "type": "openBgmSelector", "title": "Shrine Audio" }
+        }
+    ]
+}
