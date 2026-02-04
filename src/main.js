@@ -41,6 +41,9 @@ import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader
 import { loadGardenBgm } from './data/bgmLoader.js';
 import { getGardenTracks, setGardenTracks, getGardenTitle, setGardenTitle } from './data/bgmTracks.js';
 import { resolveGardenTracks } from './data/gardenBgmTracks.js';
+import { initAmbientModal, showAmbientModal, hideAmbientModal } from './ui/modal.ambient.js';
+import { setAmbientPreset } from './world/ambientParticles.js';
+import { DEFAULT_AMBIENT_PRESET_ID } from './data/ambientPresets.js';
 
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
@@ -398,6 +401,7 @@ export async function initApp(appConfig, session) {
     initBgm();
     initBgmModal();
     applyAreaBgm(state.world.areaId);
+    initAmbientModal();
     initAdminModal();
 
     // Load dynamic content
@@ -411,6 +415,14 @@ export async function initApp(appConfig, session) {
         .catch((err) => {
             console.warn('[BGM] failed to load garden.json', err);
         });
+
+    try {
+        const storedPreset = localStorage.getItem('ambientPreset:garden');
+        const preset = storedPreset || DEFAULT_AMBIENT_PRESET_ID;
+        setAmbientPreset(preset);
+    } catch (err) {
+        console.warn('[Ambient] preset init failed', err);
+    }
 
     // Initialize call modules
     initCallStateMachine((callState, prevState) => {
@@ -644,6 +656,7 @@ export async function initApp(appConfig, session) {
             hideContextPanel();
             hideSpotModal();
             hideBgmModal();
+            hideAmbientModal();
 
             // 2) movement reset
             stopMoving();
@@ -999,6 +1012,9 @@ function handleSpotAction(action, spot) {
             showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
             break;
         }
+        case 'openAmbientParticles':
+            showAmbientModal();
+            break;
         case 'openAdmin':
             // Proximity check
             const proximity = spot?.proximity || 90;

@@ -35,6 +35,16 @@
             "bounds": { "x": 271, "y": 79, "w": 100, "h": 100 },
             "interactPoint": { "x": 321, "y": 129 },
             "action": { "type": "openBgmSelector", "title": "Shrine Audio" }
+        },
+        {
+            "id": "spot:garden:teahouse_ambient",
+            "areaId": "area:garden",
+            "kind": "action_spot",
+            "label": "Ambient",
+            "priority": 50,
+            "bounds": { "x": 440, "y": 120, "w": 120, "h": 90 },
+            "interactPoint": { "x": 500, "y": 165 },
+            "action": { "type": "openAmbientParticles", "title": "Ambient Particles" }
         }
     ]
 }

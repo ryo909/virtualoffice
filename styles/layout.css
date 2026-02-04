@@ -824,6 +824,11 @@
     overflow-y: auto;
 }
 
+.ambient-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 .spot-link-item {
     display: flex;
     align-items: center;

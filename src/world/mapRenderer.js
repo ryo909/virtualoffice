@@ -1,8 +1,9 @@
 // mapRenderer.js - Canvas rendering for the map (Pixel Illustration Style)
 
-import { getWorldModel, getDesks, getSpots } from './mapLoader.js';
+import { getWorldModel, getDesks, getSpots, getActiveArea } from './mapLoader.js';
 import { getConfig } from '../services/supabaseClient.js';
 import { AVATAR_RADIUS } from './collision.js';
+import { initAmbientParticles, updateAmbientParticles, renderAmbientParticles } from './ambientParticles.js';
 
 // New render modules
 import { getPattern, zonePatterns } from '../render/patterns.js';
@@ -63,6 +64,12 @@ export async function initRenderer(canvasElement) {
         resizeCanvasToContainer();
     });
     resizeObserver.observe(container);
+
+    initAmbientParticles({
+        getAreaId: () => getActiveArea(),
+        getZoom: () => camera.zoom,
+        getCanvasSize: () => ({ w: canvasSize.w, h: canvasSize.h })
+    });
 
     return { canvas, ctx };
 }
@@ -345,6 +352,9 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     }
 
     ctx.restore();
+
+    updateAmbientParticles(deltaMs);
+    renderAmbientParticles(ctx);
 }
 
 /**
