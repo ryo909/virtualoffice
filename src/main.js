@@ -1,6 +1,6 @@
 // main.js - Main application state and logic
 
-import { loadMaps, getSpawnPoint, getSpotById, setActiveArea } from './world/mapLoader.js';
+import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
     updateCamera, applyZoom, setShowDebugSpots, getCamera,
@@ -44,6 +44,8 @@ import { resolveGardenTracks } from './data/gardenBgmTracks.js';
 import { initAmbientModal, showAmbientModal, hideAmbientModal } from './ui/modal.ambient.js';
 import { setAmbientPreset } from './world/ambientParticles.js';
 import { DEFAULT_AMBIENT_PRESET_ID } from './data/ambientPresets.js';
+import { initModal, closeModal } from './ui/modal.js';
+import { openProfileEditor, openDirectorySearch, openRecentUpdates, openProfileViewer } from './library/libraryActions.js';
 
 import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
@@ -106,6 +108,7 @@ let animationFrameId = null;
 let config = null;
 let deskCallState = { status: 'idle' };
 let prevPosBeforeSit = null;
+let isMapSwitching = false;
 
 // Debug object for coordinate verification
 const debug = {
@@ -113,6 +116,19 @@ const debug = {
     lastWorldPos: null,
     canMoveTo: null
 };
+
+const SPOT_COOLDOWN_MS = 1500;
+let lastOpenedSpotId = null;
+let lastOpenedAt = 0;
+let nearbySpotId = null;
+let interactHintEl = null;
+
+function setWorldLoading(isLoading) {
+    const world = getWorldModel();
+    if (!world) return;
+    world.isMapLoading = isLoading;
+    world.isReady = !isLoading;
+}
 
 function resolveGardenTracksSafe() {
     let tracks = [];
@@ -198,6 +214,7 @@ export async function initApp(appConfig, session) {
     // Initialize renderer
     const canvas = document.getElementById('map-canvas');
     await initRenderer(canvas);
+    console.log('[Map] current meta.id', getWorldModel()?.meta?.id);
 
     // Initialize debug HUD (development only)
     initDebugHud();
@@ -207,6 +224,7 @@ export async function initApp(appConfig, session) {
     state.world.pos = { ...spawn };
 
     // Initialize movement
+    setWorldLoading(true);
     initMovement(spawn, (pos, facing, moving) => {
         state.world.pos = pos;
         state.world.facing = facing;
@@ -230,6 +248,8 @@ export async function initApp(appConfig, session) {
             // Note: Action spots are handled via click, not walk-in
         }
     });
+
+    setWorldLoading(false);
 
     // Initialize UI modules
     initMenubar((drawer) => {
@@ -306,6 +326,24 @@ export async function initApp(appConfig, session) {
             showToast('保存されたパスワードを削除しました', 'success');
         }
     });
+
+    function setActiveAreaButton(areaId) {
+        const options = document.querySelectorAll('#area-options .theme-option');
+        options.forEach(opt => {
+            opt.classList.toggle('active', opt.dataset.area === areaId);
+        });
+    }
+
+    const areaOptions = document.querySelectorAll('#area-options .theme-option');
+    areaOptions.forEach(opt => {
+        opt.addEventListener('click', () => {
+            const areaId = opt.dataset.area;
+            if (!areaId) return;
+            setActiveAreaButton(areaId);
+            void switchArea(areaId);
+        });
+    });
+    setActiveAreaButton(state.world.areaId);
 
     initContextPanel({
         openZoom: (url) => {
@@ -402,6 +440,7 @@ export async function initApp(appConfig, session) {
     initBgmModal();
     applyAreaBgm(state.world.areaId);
     initAmbientModal();
+    initModal();
     initAdminModal();
 
     // Load dynamic content
@@ -512,6 +551,22 @@ export async function initApp(appConfig, session) {
             setShowDebugSpots(state.debug.showSpots);
             console.log('[Debug] Spots overlay:', state.debug.showSpots ? 'ON' : 'OFF');
         }
+
+        if (e.key.toLowerCase() === 'e') {
+            if (nearbySpotId) {
+                const now = Date.now();
+                if (nearbySpotId === lastOpenedSpotId && now - lastOpenedAt < SPOT_COOLDOWN_MS) {
+                    return;
+                }
+                const spot = getSpotById(nearbySpotId);
+                if (spot?.action) {
+                    e.preventDefault();
+                    lastOpenedSpotId = nearbySpotId;
+                    lastOpenedAt = now;
+                    handleSpotAction(spot.action, spot);
+                }
+            }
+        }
     });
 
     // Subscribe to events
@@ -519,7 +574,61 @@ export async function initApp(appConfig, session) {
 
     // Helper: Check if click is on UI element
     function isUiClick(target) {
-        return target.closest('#menubar, #drawer, #modal-overlay, #context-panel, #minimap, button, input, textarea, a, .toast');
+        return target.closest('#menubar, #drawer, #modal-overlay, #context-panel, #minimap, button, input, textarea, a, .toast, .spot-modal-overlay');
+    }
+
+    function ensureInteractHint() {
+        if (interactHintEl) return interactHintEl;
+        interactHintEl = document.createElement('div');
+        interactHintEl.id = 'interact-hint';
+        document.getElementById('app').appendChild(interactHintEl);
+        return interactHintEl;
+    }
+
+    function setInteractHint(spot) {
+        const el = ensureInteractHint();
+        if (!spot) {
+            el.classList.remove('visible');
+            el.textContent = '';
+            return;
+        }
+        const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        el.textContent = isTouch ? 'Tap: Open' : 'E: Open';
+        el.classList.add('visible');
+    }
+
+    function getInteractPoint(spot) {
+        if (spot?.interactPoint) return spot.interactPoint;
+        if (spot?.bounds) {
+            return {
+                x: spot.bounds.x + spot.bounds.w / 2,
+                y: spot.bounds.y + spot.bounds.h / 2
+            };
+        }
+        if (spot?.x !== undefined && spot?.y !== undefined) {
+            return { x: spot.x, y: spot.y };
+        }
+        return null;
+    }
+
+    function getNearestInteractSpot(pos) {
+        const spots = getSpots();
+        let best = null;
+        let bestDist = Infinity;
+        spots.forEach(spot => {
+            if (!spot?.action) return;
+            const target = getInteractPoint(spot);
+            if (!target) return;
+            const dx = pos.x - target.x;
+            const dy = pos.y - target.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const proximity = spot.proximity || 90;
+            if (dist <= proximity && dist < bestDist) {
+                best = spot;
+                bestDist = dist;
+            }
+        });
+        return best;
     }
 
     // Canvas click handler (pointerdown for better touch support)
@@ -612,16 +721,20 @@ export async function initApp(appConfig, session) {
 
     function resolveBgForArea(areaId) {
         if (areaId === 'area:garden') return './assets/maps/garden_day.png';
+        if (areaId === 'area:library') return './assets/maps/library.png';
         return './assets/maps/map.png'; // office
     }
 
     function resolveSpawnNameForArea(areaId) {
         if (areaId === 'area:garden') return 'garden';
+        if (areaId === 'area:library') return 'lobby';
         return 'lobby';
     }
 
     function resolveAreaKey(areaId) {
-        return areaId === 'area:garden' ? 'garden' : 'core';
+        if (areaId === 'area:garden') return 'garden';
+        if (areaId === 'area:library') return 'library';
+        return 'core';
     }
 
     function findGardenTrack(trackId) {
@@ -649,6 +762,8 @@ export async function initApp(appConfig, session) {
 
     async function switchArea(areaId) {
         try {
+            isMapSwitching = true;
+            setWorldLoading(true);
             // 1) stop all interactions
             state.ui.selected = null;
             state.queuedAction = null;
@@ -657,6 +772,11 @@ export async function initApp(appConfig, session) {
             hideSpotModal();
             hideBgmModal();
             hideAmbientModal();
+            closeModal();
+            nearbySpotId = null;
+            lastOpenedSpotId = null;
+            lastOpenedAt = 0;
+            setInteractHint(null);
 
             // 2) movement reset
             stopMoving();
@@ -688,11 +808,16 @@ export async function initApp(appConfig, session) {
             // 7) update BGM state
             applyAreaBgm(areaId);
 
+            setActiveAreaButton(areaId);
+
             showToast(`Switched: ${areaId}`, 'success');
             console.log('[Area] switched', { areaId, spawnName, sp, bg });
         } catch (e) {
             console.error('[Area] switch failed', e);
             showToast('Area switch failed', 'error');
+        } finally {
+            setWorldLoading(false);
+            isMapSwitching = false;
         }
     }
 
@@ -701,6 +826,10 @@ export async function initApp(appConfig, session) {
 
     document.addEventListener('keydown', (e) => {
         lastActivityTime = Date.now();
+
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        const isTypingTarget = tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable;
+        if (isTypingTarget) return;
 
         if (e.key === 'ArrowUp') keys.up = true;
         if (e.key === 'ArrowDown') keys.down = true;
@@ -743,6 +872,15 @@ export async function initApp(appConfig, session) {
         if (e.key.toLowerCase() === 'o') {
             void switchArea('area:core');
         }
+        if (e.key.toLowerCase() === 'l') {
+            if (e.repeat) return;
+            const nextArea = (state.world.areaId === 'area:library') ? 'area:core' : 'area:library';
+            if (!getWorldModel(nextArea)) {
+                console.warn('[Area] missing id:', nextArea);
+                return;
+            }
+            void switchArea(nextArea);
+        }
     });
 
     document.addEventListener('keyup', (e) => {
@@ -776,6 +914,12 @@ export async function initApp(appConfig, session) {
     function gameLoop(timestamp) {
         const deltaMs = timestamp - lastFrameTime;
         lastFrameTime = timestamp;
+
+        if (isMapSwitching || getWorldModel()?.isMapLoading || !getWorldModel()?.isReady) {
+            setInteractHint(null);
+            animationFrameId = requestAnimationFrame(gameLoop);
+            return;
+        }
 
         // Update movement
         updateMovement(deltaMs);
@@ -830,6 +974,10 @@ export async function initApp(appConfig, session) {
             clickMarker = null;
         }
 
+        const nearSpot = getNearestInteractSpot(pos);
+        nearbySpotId = nearSpot?.id || null;
+        setInteractHint(nearSpot);
+
         // Render
         const otherPlayers = Array.from(state.rt.people.values()).map(p => ({
             pos: p.pos || { x: 0, y: 0 },
@@ -839,7 +987,9 @@ export async function initApp(appConfig, session) {
             actorId: p.actorId
         }));
 
-        render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime, deltaMs);
+        if (!isMapSwitching) {
+            render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime, deltaMs);
+        }
 
         // Render minimap
         const minimapCanvas = document.getElementById('minimap-canvas');
@@ -1014,6 +1164,18 @@ function handleSpotAction(action, spot) {
         }
         case 'openAmbientParticles':
             showAmbientModal();
+            break;
+        case 'openProfileEditor':
+            openProfileEditor();
+            break;
+        case 'openDirectorySearch':
+            openDirectorySearch();
+            break;
+        case 'openRecentUpdates':
+            openRecentUpdates();
+            break;
+        case 'openProfileViewer':
+            openProfileViewer();
             break;
         case 'openAdmin':
             // Proximity check

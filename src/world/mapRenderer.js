@@ -19,6 +19,7 @@ let container = null;
 let camera = { x: 0, y: 0, zoom: 1 };
 let canvasSize = { w: 0, h: 0 };
 let resizeObserver = null;
+let renderGuardLogged = false;
 
 // Background image
 let backgroundImage = null;
@@ -47,6 +48,7 @@ export async function initRenderer(canvasElement) {
     canvas = canvasElement;
     ctx = canvas.getContext('2d');
     container = document.getElementById('canvas-container');
+    if (ctx) ctx.imageSmoothingEnabled = false;
 
     // Load background image
     await setBackgroundSrc('/assets/maps/map.png');
@@ -298,7 +300,21 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
     if (!ctx) return;
 
     const world = getWorldModel();
-    if (!world) return;
+    if (!world || world.isMapLoading || !world.isReady || !world.size || !playerPos || !Number.isFinite(playerPos.x) || !Number.isFinite(playerPos.y)) {
+        if (!renderGuardLogged) {
+            renderGuardLogged = true;
+            console.warn('[render guard] skip frame', {
+                hasWorld: !!world,
+                hasSize: !!world?.size,
+                isReady: world?.isReady,
+                isMapLoading: world?.isMapLoading,
+                playerPos,
+                mapId: world?.meta?.id
+            });
+        }
+        return;
+    }
+    renderGuardLogged = false;
 
     // === Layer 0: Clear canvas ===
     ctx.fillStyle = '#2a2520';
@@ -1130,7 +1146,24 @@ export function renderMinimap(minimapCanvas, playerPos, otherPlayers = []) {
     const world = getWorldModel();
     if (!world || !minimapCtx) return;
 
+    if (!window.__minimapDebugOnce) {
+        window.__minimapDebugOnce = true;
+        console.log('[minimap debug]', {
+            walkable0: (world.walkable || world.walkableFinal || [])[0],
+            obstacle0: (world.obstacles || [])[0],
+            zone0: (world.zones || [])[0]
+        });
+    }
+
     const scale = minimapCanvas.width / world.size.w;
+
+    function pickRect(item) {
+        if (!item) return null;
+        if (item.rect && item.rect.x != null) return item.rect;
+        if (item.bounds && item.bounds.x != null) return item.bounds;
+        if (item.x != null) return item;
+        return null;
+    }
 
     // Clear
     minimapCtx.fillStyle = getCssVar('--color-bgSecondary') || '#e2e8f0';
@@ -1138,7 +1171,8 @@ export function renderMinimap(minimapCanvas, playerPos, otherPlayers = []) {
 
     // Draw zones
     world.zones.forEach(zone => {
-        const b = zone.bounds;
+        const b = pickRect(zone);
+        if (!b) return;
         minimapCtx.fillStyle = getCssVar('--color-mapZone') || 'rgba(59, 130, 246, 0.2)';
         minimapCtx.fillRect(b.x * scale, b.y * scale, b.w * scale, b.h * scale);
     });
@@ -1146,7 +1180,9 @@ export function renderMinimap(minimapCanvas, playerPos, otherPlayers = []) {
     // Draw obstacles
     minimapCtx.fillStyle = getCssVar('--color-mapWall') || '#64748b';
     world.obstacles.forEach(obs => {
-        minimapCtx.fillRect(obs.x * scale, obs.y * scale, obs.w * scale, obs.h * scale);
+        const b = pickRect(obs);
+        if (!b) return;
+        minimapCtx.fillRect(b.x * scale, b.y * scale, b.w * scale, b.h * scale);
     });
 
     // Draw other players
@@ -1234,7 +1270,8 @@ function drawDebugSpots() {
         ctx.stroke();
 
         // Draw Label Background
-        const labelText = `${spot.id} (P:${spot.priority || 0})`;
+        const baseLabel = spot.label || spot.id;
+        const labelText = `${baseLabel} (P:${spot.priority || 0})`;
         const metrics = ctx.measureText(labelText);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(labelX, labelY - 14, metrics.width + 4, 14);

@@ -853,6 +853,131 @@
     color: rgba(16, 185, 129, 0.9);
 }
 
+#interact-hint {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.85);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    z-index: 420;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+#interact-hint.visible {
+    opacity: 1;
+}
+
+.library-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.library-grid {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.library-pane {
+    flex: 1 1 240px;
+    min-width: 220px;
+}
+
+.library-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.library-section-title {
+    font-size: 12px;
+    color: var(--color-textSecondary);
+    margin-bottom: 8px;
+}
+
+.library-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.library-list-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bgSecondary);
+    color: var(--color-text);
+    text-align: left;
+}
+
+.library-list-item.active {
+    border-color: var(--color-primary);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.library-list-title {
+    font-weight: 600;
+}
+
+.library-list-meta {
+    font-size: 12px;
+    color: var(--color-textSecondary);
+}
+
+.library-empty {
+    color: var(--color-textSecondary);
+    font-size: 12px;
+}
+
+.library-detail-name {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.library-detail-meta {
+    font-size: 12px;
+    color: var(--color-textSecondary);
+    margin-bottom: 8px;
+}
+
+.library-detail-bio {
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.library-detail-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.library-tag {
+    background: var(--color-bgSecondary);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+}
+
+.library-detail-updated {
+    font-size: 11px;
+    color: var(--color-textSecondary);
+}
+
 .spot-link-item:hover {
     background: var(--color-bgTertiary);
     border-color: var(--color-primary);

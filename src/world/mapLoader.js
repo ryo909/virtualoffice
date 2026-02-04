@@ -51,6 +51,7 @@ export async function loadMaps(areaKey = 'core') {
             { key: 'desks', url: new URL('../../data/maps/map_desks.json', import.meta.url).href },
             { key: 'expansion', url: new URL('../../data/maps/map_expansion.json', import.meta.url).href },
             { key: 'garden', url: new URL('../../data/maps/map_garden.json', import.meta.url).href },
+            { key: 'library', url: new URL('../../data/maps/map_library.json', import.meta.url).href },
             { key: 'spots', url: new URL('../../data/spots.json', import.meta.url).href }
         ];
 
@@ -87,6 +88,7 @@ export async function loadMaps(areaKey = 'core') {
         const desksData = values.desks;
         const expansion = values.expansion;
         const garden = values.garden;
+        const library = values.library;
         const spotsData = values.spots;
 
         bootLog('loadMaps: json loaded');
@@ -125,6 +127,8 @@ export async function loadMaps(areaKey = 'core') {
         const officeWorld = {
             meta: core.meta,
             size: core.meta.size,
+            isReady: false,
+            isMapLoading: true,
             spawnPoints: core.spawnPoints,
             walkableBase,
             walkableFromZones,
@@ -161,10 +165,15 @@ export async function loadMaps(areaKey = 'core') {
 
         worldModelsByArea.set('area:core', officeWorld);
 
-        const gardenWorld = buildWorldFromSingleMap(garden);
+        const gardenWorld = buildWorldFromSingleMap(garden, spotsData, 'area:garden');
         worldModelsByArea.set('area:garden', gardenWorld);
 
-        activeAreaId = (areaKey === 'garden') ? 'area:garden' : 'area:core';
+        const libraryWorld = buildWorldFromSingleMap(library, spotsData, 'area:library');
+        worldModelsByArea.set('area:library', libraryWorld);
+
+        if (areaKey === 'garden') activeAreaId = 'area:garden';
+        else if (areaKey === 'library') activeAreaId = 'area:library';
+        else activeAreaId = 'area:core';
 
         bootLog(`walkableBase: ${walkableBase.length}`);
         bootLog(`walkableFromZones: ${walkableFromZones.length}`);
@@ -186,6 +195,7 @@ export async function loadMaps(areaKey = 'core') {
         console.log('[DEBUG] desk0', officeWorld.desks?.[0]);
         bootLog('loadMaps: officeWorld ready');
         bootLog('loadMaps: gardenWorld ready');
+        bootLog('loadMaps: libraryWorld ready');
 
         return getWorldModel();
     } catch (err) {
@@ -195,9 +205,15 @@ export async function loadMaps(areaKey = 'core') {
     }
 }
 
-function buildWorldFromSingleMap(single, spotsData) {
+function buildWorldFromSingleMap(single, spotsData, areaId = null) {
     const meta = single.meta || { size: single.size };
-    const size = meta?.size || single.size;
+    const size = meta?.size
+        || (meta?.width && meta?.height ? { w: meta.width, h: meta.height } : null)
+        || (single?.width && single?.height ? { w: single.width, h: single.height } : null)
+        || single.size;
+    if (meta && !meta.size && size) {
+        meta.size = { w: size.w, h: size.h };
+    }
 
     const zones = single.zones || [];
     const walkableBase = single.walkable || single.walkableBase || [];
@@ -221,6 +237,8 @@ function buildWorldFromSingleMap(single, spotsData) {
         meta,
         size,
         spawnPoints: single.spawnPoints || { lobby: { x: 260, y: 260 } },
+        isReady: false,
+        isMapLoading: true,
         walkableBase,
         walkableFromZones,
         walkableFinal,
@@ -235,7 +253,7 @@ function buildWorldFromSingleMap(single, spotsData) {
         desks: normalizedDesks,
         deskRules: single.deskRules || {},
         rooms: single.rooms || [],
-        spots: (single.spots && Array.isArray(single.spots)) ? single.spots : ((spotsData && spotsData.spots) ? spotsData.spots : [])
+        spots: mergeSpots(single, spotsData, areaId)
     };
 
     world.deskById = new Map();
@@ -248,6 +266,14 @@ function buildWorldFromSingleMap(single, spotsData) {
     world.zones.forEach(z => world.zoneById.set(z.id, z));
 
     return world;
+}
+
+function mergeSpots(single, spotsData, areaId) {
+    const fromMap = (single?.spots && Array.isArray(single.spots)) ? single.spots : [];
+    const fromData = (spotsData && Array.isArray(spotsData.spots)) ? spotsData.spots : [];
+    if (!areaId) return [...fromMap, ...fromData];
+    const filtered = fromData.filter(spot => spot?.areaId === areaId);
+    return [...fromMap, ...filtered];
 }
 
 function extractWalkableFromZones(zones = []) {
