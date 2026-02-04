@@ -26,6 +26,7 @@ let backgroundImage = null;
 let backgroundLoaded = false;
 // Background image source (switchable)
 let backgroundSrc = '/assets/maps/map.png'; // default office
+let backgroundLogOnce = new Set();
 
 // Zoom limits
 const MIN_ZOOM = 0.65;
@@ -107,6 +108,10 @@ export async function setBackgroundSrc(src) {
 
     backgroundSrc = src;
     const resolvedSrc = resolveAssetUrl(src);
+    if (!backgroundLogOnce.has(resolvedSrc)) {
+        backgroundLogOnce.add(resolvedSrc);
+        console.log('[bg] loading:', resolvedSrc, 'from', src);
+    }
 
     return new Promise((resolve) => {
         const nextImage = new Image();
@@ -119,7 +124,7 @@ export async function setBackgroundSrc(src) {
         };
         nextImage.onerror = (err) => {
             backgroundLoaded = false;
-            console.warn('[MapRenderer] Failed to load background image, using fallback:', backgroundSrc, err);
+            console.warn('[bg] FAILED:', resolvedSrc, 'from', src, err);
             resolve();
         };
         nextImage.src = resolvedSrc;
