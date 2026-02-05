@@ -146,6 +146,17 @@
             "bounds": { "x": 160, "y": 168, "w": 192, "h": 160 },
             "interactPoint": { "x": 256, "y": 344 },
             "proximity": 80
+        },
+        {
+            "id": "garden:temizu",
+            "areaId": "area:garden",
+            "kind": "action_spot",
+            "label": "Temizu",
+            "priority": 80,
+            "bounds": { "x": 385, "y": 502, "w": 95, "h": 75 },
+            "interactPoint": { "x": 417, "y": 537 },
+            "proximity": 140,
+            "action": { "type": "cycleTimeMode" }
         }
     ]
 }

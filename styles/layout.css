@@ -853,6 +853,15 @@
     color: rgba(16, 185, 129, 0.9);
 }
 
+.bgm-now-playing {
+    margin-bottom: 8px;
+}
+
+.bgm-now-playing strong {
+    color: var(--color-accent);
+    font-weight: 700;
+}
+
 #interact-hint {
     position: fixed;
     left: 50%;

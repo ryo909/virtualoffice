@@ -35,15 +35,13 @@ import { initContextPanel, showContextPanel, hideContextPanel, loadRoomSettings,
 import { initSpotModal, showToolLinksModal, showBulletinModal, hideSpotModal, isSpotModalVisible } from './ui/modal.spot.js';
 import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } from './ui/modal.admin.js';
 import { initBgmModal, showBgmModal, hideBgmModal } from './ui/modal.bgm.js';
-import { initBgm, unlockAudio, playBgm, stopBgm } from './audio/bgmManager.js';
-import { GARDEN_BGM, DEFAULT_GARDEN_BGM_ID } from './audio/bgmCatalog.js';
+import { initBgmManager, unlockAudio, playTrack, stop, setAreaId as setBgmArea, getState as getBgmState } from './audio/bgmManager.js';
 import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
-import { loadGardenBgm } from './data/bgmLoader.js';
-import { getGardenTracks, setGardenTracks, getGardenTitle, setGardenTitle } from './data/bgmTracks.js';
-import { resolveGardenTracks } from './data/gardenBgmTracks.js';
+import { resolveGardenTracks, DEFAULT_GARDEN_BGM_ID } from './data/gardenBgmTracks.js';
 import { initAmbientModal, showAmbientModal, hideAmbientModal } from './ui/modal.ambient.js';
 import { setAmbientPreset } from './world/ambientParticles.js';
 import { DEFAULT_AMBIENT_PRESET_ID } from './data/ambientPresets.js';
+import { nextTimeOfDay, getTimePreset } from './data/timeOfDay.js';
 import { initModal, closeModal } from './ui/modal.js';
 import { openProfileEditor, openDirectorySearch, openRecentUpdates, openProfileViewer } from './library/libraryActions.js';
 
@@ -58,7 +56,7 @@ import {
     hangupDeskCall
 } from './call/deskCall.js';
 
-import { getSessionId, setSessionId, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId } from './utils/storage.js';
+import { getSessionId, setSessionId, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId, getTimeMode, setTimeMode } from './utils/storage.js';
 import { generateSessionId } from './utils/ids.js';
 
 // ========== Application State ==========
@@ -69,6 +67,7 @@ const state = {
         selected: null,
         modal: 'none',
         themeId: 'theme:day',
+        timeMode: 'day',
         toastQueue: []
     },
     world: {
@@ -131,31 +130,13 @@ function setWorldLoading(isLoading) {
 }
 
 function resolveGardenTracksSafe() {
-    let tracks = [];
     try {
-        const fromStore = getGardenTracks?.() ?? [];
-        if (fromStore.length) return fromStore;
-    } catch (err) {
-        console.warn('[BGM] getGardenTracks failed', err);
-    }
-
-    try {
-        const base = window?.APP_BASE_URL || window?.BASE_URL || '/virtualoffice';
-        tracks = (typeof resolveGardenTracks === 'function') ? resolveGardenTracks(base) : [];
+        return (typeof resolveGardenTracks === 'function')
+            ? resolveGardenTracks(import.meta.env.BASE_URL || '/')
+            : [];
     } catch (err) {
         console.warn('[BGM] resolveGardenTracks failed; continue without BGM', err);
-        tracks = [];
-    }
-
-    return tracks;
-}
-
-function resolveGardenTitleSafe() {
-    try {
-        return getGardenTitle?.() || 'Garden BGM';
-    } catch (err) {
-        console.warn('[BGM] getGardenTitle failed', err);
-        return 'Garden BGM';
+        return [];
     }
 }
 
@@ -181,6 +162,9 @@ export async function initApp(appConfig, session) {
         applyTheme(savedTheme);
         setActiveTheme(savedTheme);
     }
+
+    state.ui.timeMode = getTimeMode();
+    console.log('[TimeMode] restored from storage', { timeMode: state.ui.timeMode });
 
     // Boot logging helper
     const bootLog = (msg) => {
@@ -436,7 +420,8 @@ export async function initApp(appConfig, session) {
 
     // Initialize spot modal
     initSpotModal();
-    initBgm();
+    initBgmManager();
+    setBgmArea(state.world.areaId);
     initBgmModal();
     applyAreaBgm(state.world.areaId);
     initAmbientModal();
@@ -446,14 +431,6 @@ export async function initApp(appConfig, session) {
     // Load dynamic content
     loadGallery();
     loadNews();
-    loadGardenBgm()
-        .then(data => {
-            setGardenTracks(data?.tracks || []);
-            setGardenTitle(data?.title || 'Garden BGM');
-        })
-        .catch((err) => {
-            console.warn('[BGM] failed to load garden.json', err);
-        });
 
     try {
         const storedPreset = localStorage.getItem('ambientPreset:garden');
@@ -742,26 +719,31 @@ export async function initApp(appConfig, session) {
     }
 
     function applyAreaBgm(areaId) {
+        setBgmArea(areaId);
         if (areaId === 'area:garden') {
             const stored = localStorage.getItem('bgm:garden:selected');
             const selectedId = stored && stored.length ? stored : DEFAULT_GARDEN_BGM_ID;
 
             if (selectedId === 'none') {
-                stopBgm();
+                stop();
                 return;
             }
 
             const track = findGardenTrack(selectedId) || findGardenTrack(DEFAULT_GARDEN_BGM_ID);
             if (track) {
-                playBgm(track.src || track.url);
+                void playTrack(track, { areaId });
             }
         } else {
-            stopBgm();
+            stop();
         }
     }
 
     async function switchArea(areaId) {
         try {
+            if (areaId !== 'area:garden') {
+                setBgmArea(areaId);
+                stop();
+            }
             isMapSwitching = true;
             setWorldLoading(true);
             // 1) stop all interactions
@@ -978,6 +960,10 @@ export async function initApp(appConfig, session) {
         nearbySpotId = nearSpot?.id || null;
         setInteractHint(nearSpot);
 
+        if (state.world.areaId !== 'area:garden' && getBgmState().isPlaying) {
+            stop();
+        }
+
         // Render
         const otherPlayers = Array.from(state.rt.people.values()).map(p => ({
             pos: p.pos || { x: 0, y: 0 },
@@ -988,7 +974,17 @@ export async function initApp(appConfig, session) {
         }));
 
         if (!isMapSwitching) {
-            render(pos, getFacing(), otherPlayers, state.me, clickMarker, clickMarkerTime, deltaMs);
+            render(
+                pos,
+                getFacing(),
+                otherPlayers,
+                state.me,
+                clickMarker,
+                clickMarkerTime,
+                deltaMs,
+                state.world.areaId,
+                state.ui.timeMode
+            );
         }
 
         // Render minimap
@@ -1136,30 +1132,13 @@ function handleSpotAction(action, spot) {
             showBulletinModal(action.title || 'Bulletin', news?.items || []);
             break;
         case 'openBgmSelector': {
+            if (state.world.areaId !== 'area:garden') {
+                console.log('[BGM] ignored openBgmSelector outside garden', { areaId: state.world.areaId });
+                return;
+            }
             const stored = localStorage.getItem('bgm:garden:selected');
             const selectedId = stored && stored.length ? stored : DEFAULT_GARDEN_BGM_ID;
-            let hasLoaded = false;
-            try {
-                hasLoaded = (getGardenTracks?.() ?? []).length > 0;
-            } catch (err) {
-                console.warn('[BGM] getGardenTracks failed', err);
-                hasLoaded = false;
-            }
-            if (!hasLoaded) {
-                loadGardenBgm()
-                    .then((data) => {
-                        setGardenTracks(data?.tracks || []);
-                        setGardenTitle(data?.title || 'Garden BGM');
-                        showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
-                    })
-                    .catch((err) => {
-                        console.warn('[BGM] failed to load garden.json', err);
-                        showToast('BGMデータの読み込みに失敗しました', 'error');
-                        showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
-                    });
-                break;
-            }
-            showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: resolveGardenTitleSafe() });
+            showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: 'Garden BGM' });
             break;
         }
         case 'openAmbientParticles':
@@ -1210,6 +1189,21 @@ function handleSpotAction(action, spot) {
                     spotId: spot.id,
                     actionType: action.type
                 };
+            }
+            break;
+        case 'cycleTimeMode':
+            if (state.world.areaId !== 'area:garden') {
+                console.log('[Temizu] ignored cycleTimeMode outside garden', { areaId: state.world.areaId });
+                return;
+            }
+            {
+                const areaId = state.world.areaId;
+                const prev = state.ui.timeMode || 'day';
+                const next = nextTimeOfDay(prev);
+                state.ui.timeMode = next;
+                setTimeMode(next);
+                console.log('[Temizu] cycleTimeMode', { areaId, prev, next });
+                showToast(`Time: ${getTimePreset(next).label.toLowerCase()}`, 'success');
             }
             break;
         default:

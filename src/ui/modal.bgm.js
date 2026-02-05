@@ -1,4 +1,4 @@
-import { playBgm, stopBgm, setVolume } from '../audio/bgmManager.js';
+import { playTrack, stop, setVolume, getState as getBgmState } from '../audio/bgmManager.js';
 
 let bgmModalOverlay = null;
 let bgmModal = null;
@@ -63,20 +63,27 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
 
     const body = document.getElementById('bgm-modal-body');
     const selected = selectedId || localStorage.getItem(STORAGE_SELECTED) || 'none';
+    const bgmState = getBgmState?.() || {};
+    const activeTrackId = bgmState.isPlaying ? bgmState.playingId : selected;
+    const nowPlayingTitle = bgmState.isPlaying ? (bgmState.playingTitle || 'Unknown') : 'Stopped';
 
     const trackButtons = tracks.map(track => {
-        const active = track.id === selected ? 'data-active="true"' : '';
+        const active = track.id === activeTrackId ? 'data-active="true"' : '';
         return `
             <button type="button" class="spot-link-item" data-track-id="${track.id}" ${active}>
                 <div class="spot-link-header">
-                    <span class="spot-link-label">${track.title || track.label || track.id}</span>
-                    ${track.id === selected ? '<span class="spot-playing">Playing</span>' : ''}
+                    <span class="spot-link-label">${track.title}</span>
+                    ${(bgmState.playingId === track.id && bgmState.isPlaying) ? '<span class="spot-playing">Playing</span>' : ''}
                 </div>
             </button>
         `;
     }).join('');
 
     body.innerHTML = `
+        <div class="spot-link-item bgm-now-playing">
+            <span>Now Playing</span>
+            <strong>${nowPlayingTitle}</strong>
+        </div>
         <div class="spot-links-list bgm-track-list">
             ${trackButtons || '<div class="spot-link-item">No tracks</div>'}
         </div>
@@ -96,9 +103,12 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
             const trackId = btn.getAttribute('data-track-id');
             const track = tracks.find(t => t.id === trackId);
             if (!track) return;
-            playBgm(track.src || track.url);
-            localStorage.setItem(STORAGE_SELECTED, track.id);
-            showBgmModal({ tracks, selectedId: track.id });
+            void playTrack(track).then((ok) => {
+                if (ok) {
+                    localStorage.setItem(STORAGE_SELECTED, track.id);
+                }
+                showBgmModal({ tracks, selectedId: track.id, title });
+            });
         });
     });
 
@@ -107,9 +117,9 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
         stopBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            stopBgm();
+            stop();
             localStorage.setItem(STORAGE_SELECTED, 'none');
-            showBgmModal({ tracks, selectedId: 'none' });
+            showBgmModal({ tracks, selectedId: 'none', title });
         });
     }
 

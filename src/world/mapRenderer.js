@@ -4,6 +4,7 @@ import { getWorldModel, getDesks, getSpots, getActiveArea } from './mapLoader.js
 import { getConfig } from '../services/supabaseClient.js';
 import { AVATAR_RADIUS } from './collision.js';
 import { initAmbientParticles, updateAmbientParticles, renderAmbientParticles } from './ambientParticles.js';
+import { getTimePreset } from '../data/timeOfDay.js';
 
 // New render modules
 import { getPattern, zonePatterns } from '../render/patterns.js';
@@ -27,10 +28,19 @@ let backgroundLoaded = false;
 // Background image source (switchable)
 let backgroundSrc = '/assets/maps/map.png'; // default office
 let backgroundLogOnce = new Set();
+let lastTimeOverlayLogKey = '';
 
 // Zoom limits
 const MIN_ZOOM = 0.65;
 const MAX_ZOOM = 1.6;
+const LANTERN_LIGHTS = [
+    { x: 126, y: 173 },
+    { x: 374, y: 229 },
+    { x: 274, y: 404 },
+    { x: 529, y: 423 }
+];
+const NIGHT_LIGHT_RADIUS = 115;
+const NIGHT_LIGHT_INTENSITY = 0.42;
 
 // Lerp factor for camera smoothing
 const CAMERA_LERP = 0.12;
@@ -301,7 +311,17 @@ function getCssVar(name) {
 /**
  * Render the entire map with pixel illustration style
  */
-export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clickMarker = null, clickMarkerTime = 0, deltaMs = 16) {
+export function render(
+    playerPos,
+    playerFacing,
+    otherPlayers = [],
+    me = {},
+    clickMarker = null,
+    clickMarkerTime = 0,
+    deltaMs = 16,
+    currentAreaId = getActiveArea(),
+    timeOfDayId = 'day'
+) {
     if (!ctx) return;
 
     const world = getWorldModel();
@@ -376,6 +396,65 @@ export function render(playerPos, playerFacing, otherPlayers = [], me = {}, clic
 
     updateAmbientParticles(deltaMs);
     renderAmbientParticles(ctx);
+    renderTimeOfDayOverlay(currentAreaId, timeOfDayId);
+}
+
+function renderTimeOfDayOverlay(currentAreaId, timeOfDayId) {
+    if (!ctx) return;
+    if (currentAreaId !== 'area:garden') {
+        lastTimeOverlayLogKey = '';
+        return;
+    }
+
+    const preset = getTimePreset(timeOfDayId);
+    const overlay = preset?.overlay || 'rgba(0,0,0,0)';
+    const logKey = `${currentAreaId}:${preset?.id || 'unknown'}`;
+    if (lastTimeOverlayLogKey !== logKey) {
+        lastTimeOverlayLogKey = logKey;
+        console.log('[TimeOverlay] applied', {
+            areaId: currentAreaId,
+            requested: timeOfDayId,
+            presetId: preset?.id || 'day',
+            overlay
+        });
+    }
+
+    ctx.save();
+    ctx.fillStyle = overlay;
+    ctx.fillRect(0, 0, canvasSize.w, canvasSize.h);
+    ctx.restore();
+
+    if (preset?.id !== 'night') return;
+    drawGardenLanternLights();
+}
+
+function drawGardenLanternLights() {
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    LANTERN_LIGHTS.forEach((point) => {
+        if (!point) return;
+        const screen = worldToScreen(point.x, point.y);
+        const radius = Math.max(1, NIGHT_LIGHT_RADIUS * camera.zoom);
+        const intensity = Math.max(0, Math.min(1, NIGHT_LIGHT_INTENSITY));
+
+        if (screen.x + radius < 0 || screen.x - radius > canvasSize.w) return;
+        if (screen.y + radius < 0 || screen.y - radius > canvasSize.h) return;
+
+        const gradient = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, radius);
+        gradient.addColorStop(0, `rgba(255,235,170,${intensity})`);
+        gradient.addColorStop(1, 'rgba(255,235,170,0)');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
 }
 
 /**

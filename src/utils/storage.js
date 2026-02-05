@@ -4,7 +4,8 @@ const KEYS = {
   SESSION_ID: 'office.session_id',
   SHARED_PASSWORD: 'office.shared_password',
   DISPLAY_NAME: 'office.display_name',
-  THEME_ID: 'office.theme_id'
+  THEME_ID: 'office.theme_id',
+  TIME_MODE: 'vo:timeMode'
 };
 
 export function getSessionId() {
@@ -41,6 +42,17 @@ export function getThemeId() {
 
 export function setThemeId(id) {
   localStorage.setItem(KEYS.THEME_ID, id);
+}
+
+export function getTimeMode() {
+  const id = localStorage.getItem(KEYS.TIME_MODE);
+  if (id === 'day' || id === 'dusk' || id === 'night') return id;
+  return 'day';
+}
+
+export function setTimeMode(id) {
+  if (id !== 'day' && id !== 'dusk' && id !== 'night') return;
+  localStorage.setItem(KEYS.TIME_MODE, id);
 }
 
 export function clearAll() {
