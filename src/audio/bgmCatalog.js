@@ -1,19 +1,9 @@
-export const GARDEN_BGM = [
-    {
-        id: 'garden_calm',
-        label: 'Garden Calm',
-        url: '/assets/bgm/garden_calm.mp3'
-    },
-    {
-        id: 'garden_night',
-        label: 'Garden Night',
-        url: '/assets/bgm/garden_night.mp3'
-    },
-    {
-        id: 'garden_koto',
-        label: 'Garden Koto',
-        url: '/assets/bgm/garden_koto.mp3'
-    }
-];
+import { GARDEN_BGM_TRACKS, resolveBgmUrl, DEFAULT_GARDEN_BGM_ID } from '../data/gardenBgmTracks.js';
 
-export const DEFAULT_GARDEN_BGM_ID = 'garden_calm';
+export const GARDEN_BGM = GARDEN_BGM_TRACKS.map((track) => ({
+    id: track.id,
+    label: track.title,
+    url: resolveBgmUrl(track.file)
+}));
+
+export { DEFAULT_GARDEN_BGM_ID };

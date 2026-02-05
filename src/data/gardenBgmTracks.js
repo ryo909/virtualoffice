@@ -1,9 +1,6 @@
-export const DEFAULT_GARDEN_BGM_ID = 'garden_calm';
+export const DEFAULT_GARDEN_BGM_ID = 'kagaribi_no_yado';
 
 export const GARDEN_BGM_TRACKS = [
-    { id: 'garden_calm', title: '庭園の静けさ', file: 'garden_calm.mp3' },
-    { id: 'garden_koto', title: '庭園の琴', file: 'garden_koto.mp3' },
-    { id: 'garden_night', title: '庭園の夜', file: 'garden_night.mp3' },
     { id: 'kagaribi_no_yado', title: '篝火のお宿', file: 'kagaribi_no_yado.mp3' },
     { id: 'noyama', title: '野山', file: 'noyama.mp3' },
     { id: 'onsengai_no_yube', title: '温泉街の夕べ', file: 'onsengai_no_yube.mp3' },
