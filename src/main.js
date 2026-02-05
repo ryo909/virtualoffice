@@ -1,6 +1,6 @@
 // main.js - Main application state and logic
 
-import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel } from './world/mapLoader.js';
+import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel, getActiveArea } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
     updateCamera, applyZoom, setShowDebugSpots, getCamera,
@@ -37,7 +37,7 @@ import { initAdminModal, showAdminModal, hideAdminModal, isAdminModalVisible } f
 import { initBgmModal, showBgmModal, hideBgmModal } from './ui/modal.bgm.js';
 import { initBgmManager, unlockAudio, playTrack, stop, setAreaId as setBgmArea, getState as getBgmState } from './audio/bgmManager.js';
 import { loadGallery, loadNews, getGallery, getNews } from './data/contentLoader.js';
-import { resolveGardenTracks, DEFAULT_GARDEN_BGM_ID } from './data/gardenBgmTracks.js';
+import { GARDEN_BGM_TRACKS, resolveBgmUrl, DEFAULT_GARDEN_BGM_ID } from './data/gardenBgmTracks.js';
 import { initAmbientModal, showAmbientModal, hideAmbientModal } from './ui/modal.ambient.js';
 import { setAmbientPreset } from './world/ambientParticles.js';
 import { DEFAULT_AMBIENT_PRESET_ID } from './data/ambientPresets.js';
@@ -130,13 +130,40 @@ function setWorldLoading(isLoading) {
 }
 
 function resolveGardenTracksSafe() {
+    const activeArea = getActiveArea?.() || state.world.areaId || 'area:core';
+    const base = getBaseUrlSafe();
     try {
-        return (typeof resolveGardenTracks === 'function')
-            ? resolveGardenTracks(import.meta.env.BASE_URL || '/')
-            : [];
+        const tracks = (GARDEN_BGM_TRACKS || []).map((track) => ({
+            ...track,
+            url: resolveBgmUrl(track.file),
+            src: resolveBgmUrl(track.file)
+        }));
+        return tracks;
     } catch (err) {
-        console.warn('[BGM] resolveGardenTracks failed; continue without BGM', err);
+        console.warn('[BGM] resolveGardenTracks failed; continue without BGM', {
+            activeArea,
+            base,
+            trackCount: Array.isArray(GARDEN_BGM_TRACKS) ? GARDEN_BGM_TRACKS.length : 0,
+            err
+        });
         return [];
+    }
+}
+
+function getBaseUrlSafe() {
+    try {
+        const base = import.meta?.env?.BASE_URL;
+        if (typeof base === 'string' && base.length) return base;
+    } catch (_) {
+        // noop
+    }
+    return '/';
+}
+
+function enforceBgmAreaRule() {
+    const area = getActiveArea?.() || state.world.areaId || 'area:core';
+    if (area !== 'area:garden') {
+        stop();
     }
 }
 
@@ -736,6 +763,7 @@ export async function initApp(appConfig, session) {
         } else {
             stop();
         }
+        enforceBgmAreaRule();
     }
 
     async function switchArea(areaId) {
@@ -776,6 +804,7 @@ export async function initApp(appConfig, session) {
             await loadMaps(areaKey);
             setActiveArea(areaId);
             state.world.areaId = areaId;
+            enforceBgmAreaRule();
 
             // 5) teleport to spawn
             const spawnName = resolveSpawnNameForArea(areaId);
@@ -960,6 +989,7 @@ export async function initApp(appConfig, session) {
         nearbySpotId = nearSpot?.id || null;
         setInteractHint(nearSpot);
 
+        enforceBgmAreaRule();
         if (state.world.areaId !== 'area:garden' && getBgmState().isPlaying) {
             stop();
         }
