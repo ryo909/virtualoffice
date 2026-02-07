@@ -1,6 +1,5 @@
 // main.js - Main application state and logic
 
-import './companion/companion.ui.css';
 import { mountCompanion } from './companion/companion.js';
 
 import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel, getActiveArea, getDeskById } from './world/mapLoader.js';
