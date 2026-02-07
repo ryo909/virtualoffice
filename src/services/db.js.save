@@ -1,0 +1,212 @@
+// db.js - Database operations
+
+import { getSupabase } from './supabaseClient.js';
+import { generateSessionId } from '../utils/ids.js';
+import { setSessionId } from '../utils/storage.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function ensureUuidSessionId(sessionId) {
+  const sid = typeof sessionId === 'string' ? sessionId : '';
+
+  if (UUID_RE.test(sid)) return sid;
+
+  const regenerated = generateSessionId(); // ここは必ずUUID形式を返す想定
+  try {
+    setSessionId(regenerated); // storageにも保存し直す（重要）
+  } catch (e) {
+    console.warn('[DB] setSessionId failed (non-fatal):', e);
+  }
+
+  console.warn('[DB] session_id was not UUID. regenerated.', {
+    old: sessionId,
+    new: regenerated,
+  });
+
+  return regenerated;
+}
+
+function isMissingColumn(error, columnName) {
+    const message = typeof error?.message === 'string' ? error.message : '';
+    return message.includes(`'${columnName}'`) || message.includes(columnName);
+}
+
+/**
+ * Get nameplate by display name
+ * @param {string} displayName 
+ * @returns {Promise<object|null>}
+ */
+export async function getNameplateByDisplayName(displayName) {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+        .from('nameplates')
+        .select('*')
+        .eq('display_name', displayName)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error fetching nameplate:', error);
+        return null;
+    }
+
+    return data;
+}
+
+/**
+ * Check if display name exists for another session
+ * @param {string} displayName 
+ * @param {string} sessionId 
+ * @returns {Promise<boolean>}
+ */
+export async function isDisplayNameTaken(displayName, sessionId) {
+    const supabase = getSupabase();
+
+    let { data, error } = await supabase
+        .from('nameplates')
+        .select('user_id')
+        .eq('display_name', displayName)
+        .neq('user_id', sessionId)
+        .maybeSingle();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for duplicate check.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .select('session_id')
+            .eq('display_name', displayName)
+            .neq('session_id', sessionId)
+            .maybeSingle());
+    }
+
+    if (error) {
+        console.error('Error checking display name:', error);
+        return false;
+    }
+
+    return data !== null;
+}
+
+/**
+ * Upsert nameplate
+ * @param {{sessionId: string, displayName: string, avatarKey?: string, avatarColor?: string}} params
+ * @returns {Promise<object|null>}
+ */
+export async function upsertNameplate({ sessionId, displayName, avatarKey = null, avatarColor = null }) {
+    const supabase = getSupabase();
+    let user_id = sessionId;
+    let session_id = sessionId;
+
+    console.log('[DBG] nameplates user_id =', user_id);
+    console.log('[DBG] nameplates session_id(before) =', session_id, 'uuid?', UUID_RE.test(String(session_id)));
+
+    if (!UUID_RE.test(String(session_id))) {
+        session_id = generateSessionId();
+        user_id = session_id;
+        setSessionId(session_id);
+        console.warn('[DBG] session_id was not uuid. regenerated:', session_id);
+    }
+
+    let { data, error } = await supabase
+        .from('nameplates')
+        .upsert({
+            user_id,
+            display_name: displayName,
+            avatar_key: avatarKey,
+            avatar_color: avatarColor,
+            updated_at: new Date().toISOString()
+        }, {
+            onConflict: 'user_id'
+        })
+        .select()
+        .single();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for upsert.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .upsert({
+                session_id,
+                display_name: displayName,
+                avatar_key: avatarKey,
+                avatar_color: avatarColor,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'session_id'
+            })
+            .select()
+            .single());
+    }
+
+    if (error) {
+        console.error('[DB] nameplates upsert failed', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+        });
+        throw error;
+    }
+
+    return data;
+}
+
+/**
+ * Get room settings (Zoom URLs)
+ * @returns {Promise<Map<string, {zoomUrl: string, isEnabled: boolean}>>}
+ */
+export async function getRoomSettings() {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+        .from('room_settings')
+        .select('*');
+
+    const result = new Map();
+
+    if (error) {
+        console.error('Error fetching room settings:', error);
+        return result;
+    }
+
+    if (data) {
+        data.forEach(row => {
+            result.set(row.room_key, {
+                zoomUrl: row.zoom_url || null,
+                isEnabled: row.is_enabled !== false
+            });
+        });
+    }
+
+    return result;
+}
+
+/**
+ * Get nameplate by session ID
+ * @param {string} sessionId 
+ * @returns {Promise<object|null>}
+ */
+export async function getNameplateBySessionId(sessionId) {
+    const supabase = getSupabase();
+
+    let { data, error } = await supabase
+        .from('nameplates')
+        .select('*')
+        .eq('user_id', sessionId)
+        .maybeSingle();
+
+    if (error && isMissingColumn(error, 'user_id')) {
+        console.warn('[DB] nameplates.user_id missing, falling back to session_id for lookup.');
+        ({ data, error } = await supabase
+            .from('nameplates')
+            .select('*')
+            .eq('session_id', sessionId)
+            .maybeSingle());
+    }
+
+    if (error) {
+        console.error('Error fetching nameplate by session:', error);
+        return null;
+    }
+
+    return data;
+}
