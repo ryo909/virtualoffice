@@ -1,0 +1,162 @@
+{
+    "version": 2,
+    "spots": [
+        {
+            "id": "spot:meeting_a",
+            "areaId": "area:core",
+            "kind": "zoom_room",
+            "label": "Meeting A",
+            "roomKey": "meeting_a",
+            "priority": 50,
+            "bounds": {
+                "x": 22,
+                "y": 22,
+                "w": 220,
+                "h": 155
+            },
+            "enterPoint": {
+                "x": 132,
+                "y": 180
+            },
+            "ui": {
+                "showOpenZoom": true,
+                "showRoomChat": true
+            }
+        },
+        {
+            "id": "spot:meeting_b",
+            "areaId": "area:core",
+            "kind": "zoom_room",
+            "label": "Meeting B",
+            "roomKey": "meeting_b",
+            "priority": 50,
+            "bounds": {
+                "x": 450,
+                "y": 35,
+                "w": 175,
+                "h": 135
+            },
+            "enterPoint": {
+                "x": 508,
+                "y": 180
+            },
+            "ui": {
+                "showOpenZoom": true,
+                "showRoomChat": true
+            }
+        },
+        {
+            "id": "spot:gallery-links",
+            "areaId": "area:core",
+            "kind": "action_spot",
+            "label": "My Tools",
+            "zoneId": "area:gallery",
+            "priority": 10,
+            "x": 547,
+            "y": 325,
+            "r": 35,
+            "action": {
+                "type": "openToolLinks",
+                "title": "My Tools Gallery",
+                "links": [
+                    {
+                        "label": "HomeBuzz",
+                        "url": "https://ryo909.github.io/homebuzz/"
+                    },
+                    {
+                        "label": "Apologize",
+                        "url": "https://ryo909.github.io/apologize/"
+                    }
+                ]
+            }
+        },
+        {
+            "id": "spot:bulletin-feed",
+            "areaId": "area:core",
+            "kind": "action_spot",
+            "label": "News Wall",
+            "zoneId": "area:bulletin",
+            "priority": 10,
+            "x": 88,
+            "y": 290,
+            "r": 35,
+            "action": {
+                "type": "openBulletin",
+                "title": "News Wall"
+            }
+        },
+        {
+            "id": "spot:admin",
+            "areaId": "area:core",
+            "kind": "action_spot",
+            "label": "Admin",
+            "zoneId": "area:lobby",
+            "priority": 100,
+            "bounds": {
+                "x": 325,
+                "y": 52,
+                "w": 130,
+                "h": 72
+            },
+            "interactPoint": {
+                "x": 345,
+                "y": 140
+            },
+            "action": {
+                "type": "openAdmin"
+            },
+            "proximity": 90
+        },
+        {
+            "id": "spot:library_profile_edit",
+            "areaId": "area:library",
+            "label": "司書カウンター（プロフィール登録・編集）",
+            "kind": "action_spot",
+            "action": { "type": "openProfileEditor" },
+            "bounds": { "x": 316, "y": 86, "w": 190, "h": 70 },
+            "interactPoint": { "x": 344, "y": 168 },
+            "proximity": 70
+        },
+        {
+            "id": "spot:library_directory_search",
+            "areaId": "area:library",
+            "label": "目録検索端末（人を探す）",
+            "kind": "action_spot",
+            "action": { "type": "openDirectorySearch" },
+            "bounds": { "x": 386, "y": 208, "w": 92, "h": 84 },
+            "interactPoint": { "x": 370, "y": 248 },
+            "proximity": 65
+        },
+        {
+            "id": "spot:library_recent_updates",
+            "areaId": "area:library",
+            "label": "本棚（最近追加/更新）",
+            "kind": "action_spot",
+            "action": { "type": "openRecentUpdates" },
+            "bounds": { "x": 6, "y": 48, "w": 54, "h": 260 },
+            "interactPoint": { "x": 76, "y": 180 },
+            "proximity": 70
+        },
+        {
+            "id": "spot:library_profile_view",
+            "areaId": "area:library",
+            "label": "円卓（プロフィール閲覧）",
+            "kind": "action_spot",
+            "action": { "type": "openProfileViewer" },
+            "bounds": { "x": 160, "y": 168, "w": 192, "h": 160 },
+            "interactPoint": { "x": 256, "y": 344 },
+            "proximity": 80
+        },
+        {
+            "id": "garden:temizu",
+            "areaId": "area:garden",
+            "kind": "action_spot",
+            "label": "Temizu",
+            "priority": 80,
+            "bounds": { "x": 385, "y": 502, "w": 95, "h": 75 },
+            "interactPoint": { "x": 417, "y": 537 },
+            "proximity": 140,
+            "action": { "type": "cycleTimeMode" }
+        }
+    ]
+}
