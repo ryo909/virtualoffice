@@ -153,18 +153,23 @@ export function getRoomChatChannel(insideSpotId, seatedDeskId, areaId) {
 /**
  * Get location label for display
  * @param {string|null} insideSpotId 
- * @param {string|null} seatedDeskId 
+ * @param {string|null} claimedDeskId 
  * @param {string} areaId 
+ * @param {string|null} seatLockedDeskId
  * @returns {string}
  */
-export function getLocationLabel(insideSpotId, seatedDeskId, areaId) {
+export function getLocationLabel(insideSpotId, claimedDeskId, areaId, seatLockedDeskId = null) {
     if (insideSpotId) {
         const spot = getSpotById(insideSpotId);
         return spot ? spot.label : insideSpotId;
     }
 
-    if (seatedDeskId) {
-        return `Desk ${seatedDeskId.replace('desk:', '')}`;
+    if (seatLockedDeskId) {
+        return `デスク ${seatLockedDeskId.replace('desk:', '')} に着席中`;
+    }
+
+    if (claimedDeskId) {
+        return `デスク ${claimedDeskId.replace('desk:', '')} を確保中`;
     }
 
     return areaId.replace('area:', '');

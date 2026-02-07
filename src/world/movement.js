@@ -21,6 +21,7 @@ let targetPos = null;
 let currentPos = { x: 260, y: 260 };
 let facing = 'down';
 let isMoving = false;
+let movementLocked = false;
 let onMoveCallback = null;
 let lastLogTime = 0;
 let lastMoveMeta = null;
@@ -35,6 +36,7 @@ export function initMovement(startPos, onMove) {
     currentPos = { ...startPos };
     targetPos = null;
     isMoving = false;
+    movementLocked = false;
     onMoveCallback = onMove;
     console.log('[MOVE] initMovement', startPos);
 }
@@ -44,6 +46,12 @@ export function initMovement(startPos, onMove) {
  * Uses findPath for proper nearby search and reason tracking
  */
 export function setMoveTarget(x, y) {
+    if (movementLocked) {
+        console.log('[MOVE] ignored setMoveTarget because movementLocked');
+        stopMoving();
+        return;
+    }
+
     console.log('[MOVE] setMoveTarget called', { requested: { x: Math.round(x), y: Math.round(y) } });
 
     const world = getWorldModel();
@@ -198,6 +206,11 @@ export function setMoveTarget(x, y) {
  * @returns {{pos: {x, y}, facing: string, moving: boolean}}
  */
 export function updateMovement(deltaMs) {
+    if (movementLocked) {
+        stopMoving();
+        return { pos: currentPos, facing, moving: false };
+    }
+
     const now = Date.now();
 
     // Log every 500ms for debugging
@@ -401,6 +414,11 @@ export function setPosition(x, y) {
  * Handle keyboard movement
  */
 export function handleKeyboardMove(keys, deltaMs) {
+    if (movementLocked) {
+        stopMoving();
+        return { pos: currentPos, facing, moving: false };
+    }
+
     const deltaSeconds = deltaMs / 1000;
     const moveDistance = MOVE_SPEED * deltaSeconds;
 
@@ -458,6 +476,17 @@ export function getIsMoving() {
 
 export function getTarget() {
     return targetPos ? { ...targetPos } : null;
+}
+
+export function setMovementLocked(locked) {
+    movementLocked = !!locked;
+    if (movementLocked) {
+        stopMoving();
+    }
+}
+
+export function isMovementLocked() {
+    return movementLocked;
 }
 
 // Debug: Force move position directly

@@ -5,7 +5,7 @@ import { getSupabase } from '../services/supabaseClient.js';
 let channel = null;
 let deskId = null;
 
-export async function joinDeskCallChannel({ deskId: nextDeskId, sessionId, onEvent, onPresenceSync }) {
+export async function joinDeskCallChannel({ deskId: nextDeskId, sessionId, displayName, onEvent, onPresenceSync }) {
     const supabase = getSupabase();
 
     if (channel) {
@@ -22,10 +22,30 @@ export async function joinDeskCallChannel({ deskId: nextDeskId, sessionId, onEve
     });
 
     channel
-        .on('broadcast', { event: 'call' }, ({ payload }) => {
-            onEvent?.(payload);
+        .on('broadcast', { event: 'call' }, (event) => {
+            const payload = event?.payload;
+            const type = typeof payload?.type === 'string' ? payload.type : null;
+            if (!type || !type.startsWith('call_')) return;
+            try {
+                const result = onEvent?.(payload);
+                if (result && typeof result.catch === 'function') {
+                    result.catch((err) => {
+                        console.error('[deskCallRealtime] onEvent rejected', err, payload);
+                    });
+                }
+            } catch (err) {
+                console.error('[deskCallRealtime] onEvent failed', err, payload);
+            }
         })
         .on('presence', { event: 'sync' }, () => {
+            const state = channel.presenceState();
+            onPresenceSync?.(state);
+        })
+        .on('presence', { event: 'join' }, () => {
+            const state = channel.presenceState();
+            onPresenceSync?.(state);
+        })
+        .on('presence', { event: 'leave' }, () => {
             const state = channel.presenceState();
             onPresenceSync?.(state);
         })
@@ -33,6 +53,7 @@ export async function joinDeskCallChannel({ deskId: nextDeskId, sessionId, onEve
             if (status === 'SUBSCRIBED') {
                 await channel.track({
                     sessionId,
+                    displayName: displayName || null,
                     joinedAt: joinAt,
                     ts: Date.now()
                 });

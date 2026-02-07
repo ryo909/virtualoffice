@@ -1,6 +1,6 @@
 // main.js - Main application state and logic
 
-import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel, getActiveArea } from './world/mapLoader.js';
+import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel, getActiveArea, getDeskById } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
     updateCamera, applyZoom, setShowDebugSpots, getCamera,
@@ -9,7 +9,7 @@ import {
 import {
     initMovement, updateMovement, getCurrentPos,
     getFacing, getIsMoving, setMoveTarget,
-    stopMoving, setPosition, getTarget, lastPathResult, teleportTo
+    stopMoving, setPosition, getTarget, lastPathResult, teleportTo, setMovementLocked
 } from './world/movement.js';
 import { canMoveTo, canMoveToDebug } from './world/collision.js';
 import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel, getSortedSpotsAt } from './world/spotLogic.js';
@@ -18,13 +18,13 @@ import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
 import { updateAnimation } from './avatar/pixelSpriteRenderer.js';
 import { renderMinimap } from './ui/minimap.js';
 
-import { getConfig, getSupabase } from './services/supabaseClient.js';
+import { getConfig, getSupabase, setActorIdHeader } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
 import { initRealtime, joinPresence, updatePresence, subscribeEvents, sendEventTo, shutdownRealtime } from './services/realtime.js';
 
 import { initMenubar, openDrawer, closeDrawer, updateDisplayName, updateStatus } from './ui/menubar.js';
 import { showToast, showPokeToast } from './ui/toast.js';
-import { initChatDrawer, setChatDrawerOpen } from './ui/drawer.chat.js';
+import { initChatDrawer, setChatDrawerOpen, openDmThread } from './ui/drawer.chat.js';
 import { initPeopleDrawer, updatePeople, getPeople } from './ui/drawer.people.js';
 import { initSearchDrawer, refreshSearch } from './ui/drawer.search.js';
 import { initSettingsDrawer, applyTheme, setDisplayNameInput, setActiveStatus, setActiveTheme } from './ui/drawer.settings.js';
@@ -44,17 +44,11 @@ import { DEFAULT_AMBIENT_PRESET_ID } from './data/ambientPresets.js';
 import { nextTimeOfDay, getTimePreset } from './data/timeOfDay.js';
 import { initModal, closeModal } from './ui/modal.js';
 import { openProfileEditor, openDirectorySearch, openRecentUpdates, openProfileViewer } from './library/libraryActions.js';
+import { checkAdminSession } from './admin/adminAuth.js';
 
-import { initCallStateMachine, getCallState } from './call/callStateMachine.js';
-import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent } from './call/signaling.js';
-import { initWebRTC } from './call/webrtc.js';
-import {
-    initDeskCall,
-    joinDeskCall,
-    leaveDeskCall,
-    toggleDeskMute,
-    hangupDeskCall
-} from './call/deskCall.js';
+import { initCallStateMachine } from './call/callStateMachine.js';
+import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent, handlePeerConnectionStateChange } from './call/signaling.js';
+import { initWebRTC, getLocalStream } from './call/webrtc.js';
 
 import { getSessionId, setSessionId, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId, getTimeMode, setTimeMode } from './utils/storage.js';
 import { generateSessionId } from './utils/ids.js';
@@ -74,7 +68,8 @@ const state = {
         areaId: 'area:core',
         pos: { x: 260, y: 260 },
         facing: 'down',
-        seatedDeskId: null,
+        seatedDeskId: null, // Claimed desk id
+        seatLockedDeskId: null, // Seated (movement locked) desk id
         insideSpotId: null,
         forcedSeated: false
     },
@@ -89,10 +84,13 @@ const state = {
         people: new Map()
     },
     call: {
-        state: 'idle',
+        status: 'idle',
         peerActorId: null,
+        peerDisplayName: null,
+        deskId: null,
         callId: null,
-        lastError: null
+        muted: false,
+        startedAt: null
     },
     debug: {
         showSpots: false,
@@ -105,8 +103,6 @@ let lastFrameTime = 0;
 let lastActivityTime = Date.now();
 let animationFrameId = null;
 let config = null;
-let deskCallState = { status: 'idle' };
-let prevPosBeforeSit = null;
 let isMapSwitching = false;
 
 // Debug object for coordinate verification
@@ -121,6 +117,8 @@ let lastOpenedSpotId = null;
 let lastOpenedAt = 0;
 let nearbySpotId = null;
 let interactHintEl = null;
+let lastCallUiRefreshAt = 0;
+const DEBUG_HUD_STORAGE_KEY = 'vo:debugHudEnabled';
 
 function setWorldLoading(isLoading) {
     const world = getWorldModel();
@@ -167,6 +165,67 @@ function enforceBgmAreaRule() {
     }
 }
 
+function getSafeDisplayName() {
+    const name = typeof state.me.displayName === 'string' ? state.me.displayName.trim() : '';
+    return name || 'anonymous';
+}
+
+function buildPresencePayload(overrides = {}) {
+    if (!state.me.actorId) return null;
+
+    const payload = {
+        actorId: state.me.actorId,
+        displayName: getSafeDisplayName(),
+        status: state.me.status,
+        callStatus: state.call.status,
+        pos: getCurrentPos(),
+        facing: getFacing(),
+        avatarColor: state.me.avatar.color || null,
+        areaId: state.world.areaId || null,
+        seatedDeskId: state.world.seatedDeskId || null,
+        seatLockedDeskId: state.world.seatLockedDeskId || null,
+        location: getLocationLabel(
+            state.world.insideSpotId,
+            state.world.seatedDeskId,
+            state.world.areaId,
+            state.world.seatLockedDeskId
+        ),
+        ...overrides
+    };
+
+    payload.displayName = (typeof payload.displayName === 'string' ? payload.displayName.trim() : '') || 'anonymous';
+    payload.areaId = payload.areaId || null;
+    payload.seatedDeskId = payload.seatedDeskId || null;
+    payload.seatLockedDeskId = payload.seatLockedDeskId || null;
+    payload.claimedByActorId = payload.seatedDeskId ? state.me.actorId : null;
+    payload.claimedByDisplayName = payload.seatedDeskId ? payload.displayName : null;
+
+    if (!payload.location) {
+        payload.location = getLocationLabel(
+            state.world.insideSpotId,
+            payload.seatedDeskId,
+            payload.areaId,
+            payload.seatLockedDeskId
+        );
+    }
+
+    return payload;
+}
+
+function loadDebugHudPreference() {
+    try {
+        return localStorage.getItem(DEBUG_HUD_STORAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function applyDebugHudVisibility() {
+    const enabled = checkAdminSession() && loadDebugHudPreference();
+    document.body.classList.toggle('debug-hud-on', enabled);
+    return enabled;
+}
+
 // ========== Initialization ==========
 export async function initApp(appConfig, session) {
     config = appConfig;
@@ -181,6 +240,7 @@ export async function initApp(appConfig, session) {
         setSessionId(sessionId);
     }
     state.me.actorId = sessionId;
+    setActorIdHeader(sessionId);
 
     // Load saved theme
     const savedTheme = getThemeId();
@@ -229,6 +289,7 @@ export async function initApp(appConfig, session) {
 
     // Initialize debug HUD (development only)
     initDebugHud();
+    applyDebugHudVisibility();
 
     // Set spawn position
     const spawn = getSpawnPoint('lobby');
@@ -242,14 +303,10 @@ export async function initApp(appConfig, session) {
 
         // Update presence
         if (state.me.actorId) {
-            updatePresence({
-                actorId: state.me.actorId,
-                displayName: state.me.displayName,
-                status: state.me.status,
-                pos: pos,
-                facing: facing,
-                location: getLocationLabel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId)
-            });
+            const presencePayload = buildPresencePayload({ pos, facing });
+            if (presencePayload) {
+                updatePresence(presencePayload);
+            }
         }
 
         // Check spot entry/exit
@@ -269,21 +326,25 @@ export async function initApp(appConfig, session) {
     });
 
     initChatDrawer({
-        getMyName: () => state.me.displayName || 'anonymous'
+        getMyName: () => state.me.displayName || '不明',
+        getMyActorId: () => state.me.actorId,
+        getPersonName: (actorId) => getPeople().get(actorId)?.displayName || actorId?.slice?.(0, 6) || '不明',
+        getPeople: () => getPeople()
     });
 
     initPeopleDrawer({
         warpCallback: (person) => {
             warpNearUser(person.pos);
             closeDrawer();
-            showToast(`Warped near ${person.displayName}`);
+            showToast(`${person.displayName} の近くにワープしました`);
         },
         pokeCallback: (person) => {
             sendPoke(person.actorId);
-            showToast(`Poked ${person.displayName}`);
+            showToast(`${person.displayName} をつつきました`);
         },
-        dmCallback: () => {
+        dmCallback: (person) => {
             openDrawer('chat');
+            openDmThread(person);
         }
     });
 
@@ -291,7 +352,7 @@ export async function initApp(appConfig, session) {
         warpCallback: (person) => {
             warpNearUser(person.pos);
             closeDrawer();
-            showToast(`Warped near ${person.displayName}`);
+            showToast(`${person.displayName} の近くにワープしました`);
         }
     });
 
@@ -321,10 +382,10 @@ export async function initApp(appConfig, session) {
         statusChangeCallback: (status) => {
             state.me.status = status;
             updateStatus(status);
-            updatePresence({
-                actorId: state.me.actorId,
-                status: status
-            });
+            const presencePayload = buildPresencePayload({ status });
+            if (presencePayload) {
+                updatePresence(presencePayload);
+            }
         },
         logoutCallback: async () => {
             await shutdownRealtime();
@@ -345,9 +406,9 @@ export async function initApp(appConfig, session) {
     const mapDropdown = document.getElementById('map-dropdown');
 
     const AREA_LABELS = {
-        'area:core': 'Office',
-        'area:garden': 'Garden',
-        'area:library': 'Library'
+        'area:core': 'オフィス',
+        'area:garden': 'ガーデン',
+        'area:library': 'ライブラリ'
     };
 
     function setActiveMapItem(areaId) {
@@ -392,6 +453,85 @@ export async function initApp(appConfig, session) {
 
     setActiveMapItem(state.world.areaId);
 
+    function toggleCallMute() {
+        const stream = getLocalStream();
+        if (!stream) return;
+        stream.getAudioTracks().forEach(track => {
+            track.enabled = !track.enabled;
+        });
+        state.call.muted = !state.call.muted;
+        refreshDeskPanel();
+    }
+
+    function syncDeskPresence() {
+        const presencePayload = buildPresencePayload();
+        if (presencePayload) {
+            updatePresence(presencePayload);
+        }
+    }
+
+    function claimDesk(desk) {
+        if (!desk?.id) return;
+        const prevLockedDeskId = state.world.seatLockedDeskId;
+        if (prevLockedDeskId && prevLockedDeskId !== desk.id) {
+            leaveSeat(getDeskById(prevLockedDeskId));
+        }
+        if (state.world.seatedDeskId && state.world.seatedDeskId !== desk.id) {
+            state.world.seatLockedDeskId = null;
+            state.world.forcedSeated = false;
+            setMovementLocked(false);
+            stopMoving();
+        }
+        state.world.seatedDeskId = desk.id;
+        syncDeskPresence();
+        refreshDeskPanel();
+    }
+
+    function seatDesk(desk) {
+        if (!desk?.id) return;
+        state.world.seatedDeskId = desk.id;
+        state.world.seatLockedDeskId = desk.id;
+        state.world.forcedSeated = false;
+        stopMoving();
+        setMovementLocked(true);
+
+        const seatPos = desk.posAbs || desk.pos || null;
+        if (seatPos) {
+            teleportTo(seatPos.x, seatPos.y);
+        }
+        syncDeskPresence();
+        refreshDeskPanel();
+    }
+
+    function leaveSeat(desk) {
+        const lockedDeskId = state.world.seatLockedDeskId;
+        if (!lockedDeskId) return;
+        const targetDesk = desk || getDeskById(lockedDeskId);
+
+        stopMoving();
+        setMovementLocked(false);
+        state.world.seatLockedDeskId = null;
+        state.world.forcedSeated = false;
+
+        const standPos = targetDesk?.standPointAbs || targetDesk?.standPoint || targetDesk?.posAbs || targetDesk?.pos || null;
+        if (standPos) {
+            teleportTo(standPos.x, standPos.y);
+        }
+        syncDeskPresence();
+        refreshDeskPanel();
+    }
+
+    function unclaimDesk(desk) {
+        const deskId = desk?.id || state.world.seatedDeskId;
+        if (!deskId || state.world.seatedDeskId !== deskId) return;
+        if (state.world.seatLockedDeskId === deskId) {
+            leaveSeat(desk);
+        }
+        state.world.seatedDeskId = null;
+        syncDeskPresence();
+        refreshDeskPanel();
+    }
+
     initContextPanel({
         openZoom: (url) => {
             window.open(url, '_blank');
@@ -399,85 +539,120 @@ export async function initApp(appConfig, session) {
         openRoomChat: (spotId) => {
             openDrawer('chat');
         },
-        sit: (desk) => {
-            if (state.world.seatedDeskId && state.world.seatedDeskId !== desk.id) {
-                leaveDeskCall();
-            }
-            state.world.seatedDeskId = desk.id;
-            state.world.forcedSeated = false;
-            const p = getCurrentPos();
-            prevPosBeforeSit = { x: p.x, y: p.y };
-            if (desk.standPoint) {
-                teleportTo(desk.standPoint.x, desk.standPoint.y);
-            } else if (desk.pos) {
-                teleportTo(desk.pos.x, desk.pos.y);
-            }
-            hideContextPanel();
-            refreshDeskPanel();
+        claimDesk: (desk) => {
+            claimDesk(desk);
         },
-        stand: () => {
-            state.world.seatedDeskId = null;
-            state.world.forcedSeated = false;
-            leaveDeskCall();
-            stopMoving();
-            if (prevPosBeforeSit) {
-                teleportTo(prevPosBeforeSit.x, prevPosBeforeSit.y);
-                prevPosBeforeSit = null;
-            }
-            hideContextPanel();
-            refreshDeskPanel();
+        seatDesk: (desk) => {
+            seatDesk(desk);
         },
+        leaveSeat: (desk) => {
+            leaveSeat(desk);
+        },
+        unclaimDesk: (desk) => {
+            unclaimDesk(desk);
+        },
+
         poke: (person) => {
             sendPoke(person.actorId);
-            showToast(`Poked ${person.displayName}`);
+            showToast(`${person.displayName} をつつきました`);
         },
-        dm: () => {
+        dm: (person) => {
             openDrawer('chat');
+            openDmThread(person);
         },
-        call: (person) => {
-            startCall(person.actorId);
-        },
-        deskCallJoin: (desk) => {
-            joinDeskCall(desk.id);
+        call: async (person) => {
+            if (!person?.actorId) return;
+            unlockAudio();
+            await startCall(person.actorId);
             refreshDeskPanel();
         },
-        deskCallMute: () => {
-            toggleDeskMute();
+        callAccept: async () => {
+            unlockAudio();
+            await acceptIncomingCall();
             refreshDeskPanel();
         },
-        deskCallHangup: () => {
-            hangupDeskCall();
+        callReject: async () => {
+            await hangUp('declined');
+            refreshDeskPanel();
+        },
+        callCancel: async () => {
+            await hangUp('cancelled');
+            refreshDeskPanel();
+        },
+        callMute: () => {
+            toggleCallMute();
+            refreshDeskPanel();
+        },
+        callEnd: async () => {
+            await hangUp('hangup');
             refreshDeskPanel();
         }
     });
 
+    // Helper: find who is sitting at a given desk
+    function findOccupantForDesk(deskId) {
+        if (!deskId) return null;
+        const peopleMap = getPeople();
+        for (const [actorId, person] of peopleMap) {
+            const personDeskId = person.seatLockedDeskId || person.seatedDeskId;
+            if (personDeskId === deskId && actorId !== state.me.actorId) {
+                return person; // Return first occupant that isn't self
+            }
+        }
+        return null;
+    }
+
+    function resolveClaimedByDisplayName(deskId, occupant = null) {
+        if (!deskId) return null;
+        if (state.world.seatedDeskId === deskId) {
+            return getSafeDisplayName();
+        }
+        const deskOccupant = occupant || findOccupantForDesk(deskId);
+        if (!deskOccupant) return null;
+        return deskOccupant.claimedByDisplayName || deskOccupant.displayName || null;
+    }
+
     function buildContextMeta(selection) {
         if (selection?.kind !== 'desk') return {};
+        const claimed = state.world.seatedDeskId === selection.data.id;
+        const seatLocked = state.world.seatLockedDeskId === selection.data.id;
+        const occupant = claimed ? null : findOccupantForDesk(selection.data.id);
+        const claimedByDisplayName = resolveClaimedByDisplayName(selection.data.id, occupant);
         return {
-            seated: state.world.seatedDeskId === selection.data.id,
-            callState: deskCallState,
-            forced: state.world.forcedSeated === true && state.world.seatedDeskId === selection.data.id
+            claimed,
+            seatLocked,
+            occupant,
+            claimedByDisplayName,
+            callState: state.call,
+            forced: state.world.forcedSeated === true && seatLocked
         };
     }
 
     function refreshDeskPanel() {
         const selection = state.ui.selected;
         if (selection?.kind !== 'desk') return;
+        const claimed = state.world.seatedDeskId === selection.data.id;
+        const seatLocked = state.world.seatLockedDeskId === selection.data.id;
+        const occupant = claimed ? null : findOccupantForDesk(selection.data.id);
+        const claimedByDisplayName = resolveClaimedByDisplayName(selection.data.id, occupant);
         updateDeskPanel(
             selection.data,
-            state.world.seatedDeskId === selection.data.id,
-            null,
-            deskCallState,
-            state.world.forcedSeated === true
+            claimed,
+            seatLocked,
+            occupant,
+            state.call,
+            state.world.forcedSeated === true && seatLocked,
+            claimedByDisplayName
         );
     }
 
     initIncomingCallModal({
         acceptCallback: async () => {
+            unlockAudio();
             await acceptIncomingCall();
         },
-        rejectCallback: () => {
-            hangUp();
+        rejectCallback: async () => {
+            await hangUp('declined');
         }
     });
 
@@ -489,7 +664,13 @@ export async function initApp(appConfig, session) {
     applyAreaBgm(state.world.areaId);
     initAmbientModal();
     initModal();
-    initAdminModal();
+    initAdminModal({
+        onDebugHudToggle: (enabled) => {
+            const safeEnabled = enabled === true && checkAdminSession();
+            document.body.classList.toggle('debug-hud-on', safeEnabled);
+        },
+        getDebugHudEnabled: () => document.body.classList.contains('debug-hud-on')
+    });
 
     // Load dynamic content
     loadGallery();
@@ -504,29 +685,80 @@ export async function initApp(appConfig, session) {
     }
 
     // Initialize call modules
-    initCallStateMachine((callState, prevState) => {
-        state.call = callState;
+    function toCallUiStatus(machineState) {
+        switch (machineState) {
+            case 'requesting':
+            case 'connecting':
+                return 'calling';
+            case 'incoming':
+                return 'ringing';
+            case 'in_call':
+                return 'in_call';
+            default:
+                return 'idle';
+        }
+    }
 
-        if (callState.state === 'incoming') {
-            const caller = getPeople().get(callState.peerActorId);
-            showIncomingCallModal(caller?.displayName || 'Unknown');
-        } else if (prevState === 'incoming' && callState.state !== 'incoming') {
+    initCallStateMachine((callState, prevState) => {
+        const prevUiStatus = state.call.status;
+        const nextUiStatus = toCallUiStatus(callState?.state);
+        const isConnectedNow = nextUiStatus === 'in_call';
+        const wasConnected = prevUiStatus === 'in_call';
+        const peerActorId = callState?.peerActorId || null;
+        const peer = peerActorId ? getPeople().get(peerActorId) : null;
+
+        state.call = {
+            status: nextUiStatus,
+            peerActorId,
+            peerDisplayName: peer?.displayName || null,
+            deskId: null,
+            callId: callState?.callId || null,
+            muted: isConnectedNow ? state.call.muted : false,
+            startedAt: isConnectedNow
+                ? (wasConnected ? state.call.startedAt : Date.now())
+                : null
+        };
+
+        if (nextUiStatus === 'ringing') {
+            const caller = peerActorId ? getPeople().get(peerActorId) : null;
+            showIncomingCallModal(caller?.displayName || '不明な相手');
+        } else if (prevUiStatus === 'ringing' && nextUiStatus !== 'ringing') {
             hideIncomingCallModal();
         }
 
-        if (callState.state === 'error') {
-            showToast(callState.lastError || 'Call failed', 'error');
+        if (callState?.state === 'error') {
+            showToast(callState?.lastError || '通話に失敗しました', 'error');
         }
+
+        const presencePayload = buildPresencePayload({ callStatus: state.call.status });
+        if (presencePayload) {
+            updatePresence(presencePayload);
+        }
+        refreshDeskPanel();
     });
 
     initWebRTC({
-        onIceCandidate: (candidate) => {
-            if (state.call.peerActorId) {
-                sendEventTo(state.call.peerActorId, {
-                    type: 'call_ice_candidate',
-                    payload: { candidate }
-                });
-            }
+        onIceCandidate: (payload) => {
+            const candidate = payload?.candidate;
+            if (!candidate) return;
+            if (!state.call.peerActorId) return;
+            if (!state.call.callId) return;
+
+            sendEventTo(state.call.peerActorId, {
+                type: 'call_ice_candidate',
+                payload: {
+                    callId: state.call.callId,
+                    from: state.me.actorId,
+                    to: state.call.peerActorId,
+                    deskId: null,
+                    fromActorId: state.me.actorId,
+                    toActorId: state.call.peerActorId,
+                    data: { candidate },
+                    candidate
+                }
+            }).catch((err) => {
+                console.warn('[main] failed to send ICE candidate', err);
+            });
         },
         onTrack: (stream) => {
             // Play remote audio
@@ -535,19 +767,12 @@ export async function initApp(appConfig, session) {
             audio.play();
         },
         onConnectionStateChange: (connectionState) => {
+            handlePeerConnectionStateChange(connectionState);
             console.log('WebRTC connection state:', connectionState);
         }
     });
 
     initSignaling({ actorId: state.me.actorId });
-
-    initDeskCall({
-        sessionId: state.me.actorId,
-        onStateChange: (nextState) => {
-            deskCallState = nextState;
-            refreshDeskPanel();
-        }
-    });
 
     // Initialize realtime
     initRealtime({
@@ -564,10 +789,19 @@ export async function initApp(appConfig, session) {
                 }
             });
             updatePeople(presenceState);
+            if (state.call.peerActorId) {
+                const peer = getPeople().get(state.call.peerActorId);
+                state.call.peerDisplayName = peer?.displayName || state.call.peerDisplayName;
+            }
+            refreshDeskPanel();
             refreshSearch();
         },
         onEvent: (event) => {
-            handleEvent(event);
+            try {
+                handleEvent(event);
+            } catch (err) {
+                console.error('[realtime] event handler failed', err, event);
+            }
         }
     });
 
@@ -703,7 +937,8 @@ export async function initApp(appConfig, session) {
         }
 
         console.log('[MOVE] click received', {
-            seated: state.world.seatedDeskId != null,
+            claimedDeskId: state.world.seatedDeskId,
+            seatLockedDeskId: state.world.seatLockedDeskId,
             forcedSeated: state.world.forcedSeated === true,
             inputTarget: getTarget(),
             isMoving: getIsMoving()
@@ -828,12 +1063,10 @@ export async function initApp(appConfig, session) {
             stopMoving();
 
             // 3) seating/call reset
-            if (state.world.seatedDeskId) {
-                leaveDeskCall();
-            }
             state.world.seatedDeskId = null;
+            state.world.seatLockedDeskId = null;
             state.world.forcedSeated = false;
-            prevPosBeforeSit = null;
+            setMovementLocked(false);
 
             // 4) switch active world
             const areaKey = resolveAreaKey(areaId);
@@ -858,11 +1091,11 @@ export async function initApp(appConfig, session) {
             // Update Map menu active state
             setActiveMapItem(areaId);
 
-            showToast(`Switched: ${areaId}`, 'success');
+            showToast(`エリアを切り替えました: ${AREA_LABELS[areaId] || areaId}`, 'success');
             console.log('[Area] switched', { areaId, spawnName, sp, bg });
         } catch (e) {
             console.error('[Area] switch failed', e);
-            showToast('Area switch failed', 'error');
+            showToast('エリア切り替えに失敗しました', 'error');
         } finally {
             setWorldLoading(false);
             isMapSwitching = false;
@@ -897,18 +1130,26 @@ export async function initApp(appConfig, session) {
             const forced = state.world.forcedSeated;
             if (forced) {
                 state.world.seatedDeskId = null;
+                state.world.seatLockedDeskId = null;
                 state.world.forcedSeated = false;
-                leaveDeskCall();
-                showToast('Forced seat cleared', 'info');
+                setMovementLocked(false);
+                showToast('強制座席固定を解除しました', 'info');
             } else {
                 const p = getCurrentPos();
                 const nearest = getNearbyDesk(p.x, p.y);
                 if (nearest) {
                     state.world.seatedDeskId = nearest.id;
+                    state.world.seatLockedDeskId = nearest.id;
                     state.world.forcedSeated = true;
-                    showToast(`Seated: ${nearest.id} (forced)`, 'info');
+                    stopMoving();
+                    setMovementLocked(true);
+                    const seatPos = nearest.posAbs || nearest.pos;
+                    if (seatPos) {
+                        teleportTo(seatPos.x, seatPos.y);
+                    }
+                    showToast(`座席固定: ${nearest.id}（強制）`, 'info');
                 } else {
-                    showToast('No nearby desk found', 'error');
+                    showToast('近くにデスクが見つかりません', 'error');
                 }
             }
             refreshDeskPanel();
@@ -987,6 +1228,10 @@ export async function initApp(appConfig, session) {
 
         // Throttled presence update
         const now = Date.now();
+        if (state.call.status === 'in_call' && state.ui.selected?.kind === 'desk' && now - lastCallUiRefreshAt >= 1000) {
+            refreshDeskPanel();
+            lastCallUiRefreshAt = now;
+        }
         const distMoved = Math.sqrt(
             Math.pow(pos.x - lastSentPos.x, 2) +
             Math.pow(pos.y - lastSentPos.y, 2)
@@ -994,14 +1239,13 @@ export async function initApp(appConfig, session) {
 
         if (distMoved > PRESENCE_DISTANCE_THRESHOLD || now - lastPresenceSent > PRESENCE_INTERVAL_MS) {
             if (distMoved > 0.1) { // Only send if actually moved
-                updatePresence({
-                    actorId: state.me.actorId,
-                    displayName: state.me.displayName,
-                    status: state.me.status,
-                    pos: pos,
-                    facing: getFacing(),
-                    location: getLocationLabel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId)
+                const presencePayload = buildPresencePayload({
+                    pos,
+                    facing: getFacing()
                 });
+                if (presencePayload) {
+                    updatePresence(presencePayload);
+                }
                 lastSentPos = { ...pos };
                 lastPresenceSent = now;
             }
@@ -1013,7 +1257,10 @@ export async function initApp(appConfig, session) {
             if (elapsed > config.presence.awayAfterMs && state.me.status === 'online') {
                 state.me.status = 'away';
                 updateStatus('away');
-                updatePresence({ status: 'away' });
+                const presencePayload = buildPresencePayload({ status: 'away' });
+                if (presencePayload) {
+                    updatePresence(presencePayload);
+                }
             }
         }
 
@@ -1034,8 +1281,9 @@ export async function initApp(appConfig, session) {
         // Render
         const otherPlayers = Array.from(state.rt.people.values()).map(p => ({
             pos: p.pos || { x: 0, y: 0 },
-            displayName: p.displayName || 'Unknown',
+            displayName: p.displayName || '不明',
             status: p.status || 'online',
+            callStatus: p.callStatus || 'idle',
             avatarColor: p.avatarColor,
             actorId: p.actorId
         }));
@@ -1045,12 +1293,13 @@ export async function initApp(appConfig, session) {
                 pos,
                 getFacing(),
                 otherPlayers,
-                state.me,
+                { ...state.me, callStatus: state.call.status },
                 clickMarker,
                 clickMarkerTime,
                 deltaMs,
                 state.world.areaId,
-                state.ui.timeMode
+                state.ui.timeMode,
+                getPeople()
             );
         }
 
@@ -1139,12 +1388,12 @@ function updateDrawerUI() {
         if (content) content.classList.remove('hidden');
 
         const titles = {
-            chat: 'Chat',
-            people: 'People',
-            search: 'Search',
-            settings: 'Settings'
+            chat: 'チャット',
+            people: 'メンバー',
+            search: '検索',
+            settings: '設定'
         };
-        title.textContent = titles[state.ui.drawer] || 'Drawer';
+        title.textContent = titles[state.ui.drawer] || 'ドロワー';
     }
 
     setChatDrawerOpen(state.ui.drawer === 'chat');
@@ -1160,11 +1409,28 @@ function updateDrawerUI() {
 }
 
 function handleEvent(event) {
-    const { type, payload, fromActorId, fromDisplayName } = event;
+    const type = typeof event?.type === 'string' ? event.type : null;
+    if (!type) {
+        console.warn('[event] dropped invalid event', event);
+        return;
+    }
+
+    const payload = event?.payload;
+    const fromActorId = event?.fromActorId;
+    const fromDisplayName = event?.fromDisplayName;
 
     // Handle call events
     if (type.startsWith('call_')) {
-        handleCallEvent(event);
+        try {
+            const result = handleCallEvent(event);
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => {
+                    console.error('[call] handleCallEvent promise rejected', err, event);
+                });
+            }
+        } catch (err) {
+            console.error('[call] handleCallEvent failed', err, event);
+        }
         return;
     }
 
@@ -1205,7 +1471,7 @@ function handleSpotAction(action, spot) {
             }
             const stored = localStorage.getItem('bgm:garden:selected');
             const selectedId = stored && stored.length ? stored : DEFAULT_GARDEN_BGM_ID;
-            showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: 'Garden BGM' });
+            showBgmModal({ tracks: resolveGardenTracksSafe(), selectedId, title: 'ガーデンBGM' });
             break;
         }
         case 'openAmbientParticles':
@@ -1270,7 +1536,7 @@ function handleSpotAction(action, spot) {
                 state.ui.timeMode = next;
                 setTimeMode(next);
                 console.log('[Temizu] cycleTimeMode', { areaId, prev, next });
-                showToast(`Time: ${getTimePreset(next).label.toLowerCase()}`, 'success');
+                showToast(`時間: ${getTimePreset(next).label.toLowerCase()}`, 'success');
             }
             break;
         default:
@@ -1349,18 +1615,16 @@ export async function saveNameplate(displayName) {
 
 export async function startPresence() {
     const pos = getCurrentPos();
+    const initialState = buildPresencePayload({
+        pos,
+        facing: getFacing(),
+        avatarColor: state.me.avatar.color || null
+    });
+    if (!initialState) return;
 
     await joinPresence({
         presenceChannelKey: 'presence:office',
-        initialState: {
-            actorId: state.me.actorId,
-            displayName: state.me.displayName,
-            status: state.me.status,
-            pos: pos,
-            facing: getFacing(),
-            avatarColor: state.me.avatar.color,
-            location: getLocationLabel(state.world.insideSpotId, state.world.seatedDeskId, state.world.areaId)
-        }
+        initialState
     });
 }
 

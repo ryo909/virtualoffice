@@ -6,22 +6,36 @@ import {
     saveGalleryOverride, saveNewsOverride,
     exportData, importData, clearOverrides
 } from '../data/contentLoader.js';
+import { adminPurgeDmBefore, adminPurgeDmAll } from '../services/dmMessages.js';
+import {
+    adminDeleteGlobalMessage,
+    adminPurgeGlobalAll,
+    adminPurgeGlobalBefore,
+    fetchGlobalMessagesForAdmin
+} from '../services/globalMessages.js';
 
 let adminOverlay = null;
 let isVisible = false;
 let currentTab = 'gallery';
+let onDebugHudToggle = null;
+let getDebugHudEnabled = null;
+
+const DEBUG_HUD_STORAGE_KEY = 'vo:debugHudEnabled';
 
 /**
  * Initialize admin modal
  */
-export function initAdminModal() {
+export function initAdminModal(options = {}) {
+    onDebugHudToggle = typeof options.onDebugHudToggle === 'function' ? options.onDebugHudToggle : null;
+    getDebugHudEnabled = typeof options.getDebugHudEnabled === 'function' ? options.getDebugHudEnabled : null;
+
     adminOverlay = document.createElement('div');
     adminOverlay.id = 'admin-modal-overlay';
     adminOverlay.className = 'admin-modal-overlay';
     adminOverlay.innerHTML = `
         <div id="admin-modal" class="admin-modal">
             <div id="admin-login-view" class="admin-view">
-                <h2>🔐 Admin Login</h2>
+                <h2>🔐 管理者ログイン</h2>
                 <input type="password" id="admin-password" placeholder="パスワード" maxlength="10">
                 <div id="admin-login-error" class="admin-error"></div>
                 <div class="admin-buttons">
@@ -31,13 +45,21 @@ export function initAdminModal() {
             </div>
             <div id="admin-panel-view" class="admin-view" style="display:none;">
                 <div class="admin-header">
-                    <h2>⚙️ Admin Panel</h2>
+                    <h2>⚙️ 管理者パネル</h2>
                     <button id="admin-logout-btn" class="admin-btn small">ログアウト</button>
                 </div>
                 <div class="admin-tabs">
-                    <button class="admin-tab active" data-tab="gallery">Gallery</button>
-                    <button class="admin-tab" data-tab="news">News</button>
-                    <button class="admin-tab" data-tab="export">Export/Import</button>
+                    <button class="admin-tab active" data-tab="gallery">ギャラリー</button>
+                    <button class="admin-tab" data-tab="news">お知らせ</button>
+                    <button class="admin-tab" data-tab="export">エクスポート/インポート</button>
+                    <button class="admin-tab" data-tab="dm">DM管理</button>
+                    <button class="admin-tab" data-tab="global">全体チャット管理</button>
+                </div>
+                <div class="form-group" id="admin-debug-hud-wrap">
+                    <label class="form-checkbox" for="admin-debug-hud-toggle">
+                        <input type="checkbox" id="admin-debug-hud-toggle">
+                        デバッグ表示を有効にする
+                    </label>
                 </div>
                 <div id="admin-tab-content" class="admin-tab-content">
                     <!-- Content loaded dynamically -->
@@ -57,6 +79,7 @@ export function initAdminModal() {
     document.getElementById('admin-logout-btn').addEventListener('click', handleLogout);
     document.getElementById('admin-save-btn').addEventListener('click', handleSave);
     document.getElementById('admin-close-btn').addEventListener('click', hideAdminModal);
+    document.getElementById('admin-debug-hud-toggle')?.addEventListener('change', handleDebugHudToggleChange);
 
     // Password enter key
     document.getElementById('admin-password').addEventListener('keydown', (e) => {
@@ -94,12 +117,14 @@ export function showAdminModal() {
     if (checkAdminSession()) {
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').style.display = 'block';
+        syncDebugHudToggleUI();
         renderTabContent();
     } else {
         document.getElementById('admin-login-view').style.display = 'block';
         document.getElementById('admin-panel-view').style.display = 'none';
         document.getElementById('admin-password').value = '';
         document.getElementById('admin-login-error').textContent = '';
+        applyDebugHud(false);
     }
 
     adminOverlay.classList.add('visible');
@@ -127,6 +152,7 @@ function handleLogin() {
     if (result.success) {
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').style.display = 'block';
+        syncDebugHudToggleUI();
         renderTabContent();
     } else {
         document.getElementById('admin-login-error').textContent = result.error;
@@ -135,6 +161,8 @@ function handleLogin() {
 
 function handleLogout() {
     logoutAdmin();
+    persistDebugHudEnabled(false);
+    applyDebugHud(false);
     hideAdminModal();
 }
 
@@ -148,14 +176,72 @@ function handleSave() {
 
 function renderTabContent() {
     const container = document.getElementById('admin-tab-content');
+    const saveBtn = document.getElementById('admin-save-btn');
 
     if (currentTab === 'gallery') {
         renderGalleryEditor(container);
+        if (saveBtn) saveBtn.style.display = '';
     } else if (currentTab === 'news') {
         renderNewsEditor(container);
+        if (saveBtn) saveBtn.style.display = '';
     } else if (currentTab === 'export') {
         renderExportPanel(container);
+        if (saveBtn) saveBtn.style.display = 'none';
+    } else if (currentTab === 'dm') {
+        renderDmMaintenancePanel(container);
+        if (saveBtn) saveBtn.style.display = 'none';
+    } else if (currentTab === 'global') {
+        renderGlobalMaintenancePanel(container);
+        if (saveBtn) saveBtn.style.display = 'none';
     }
+}
+
+function handleDebugHudToggleChange() {
+    const checkbox = document.getElementById('admin-debug-hud-toggle');
+    if (!checkbox) return;
+
+    if (!checkAdminSession()) {
+        checkbox.checked = false;
+        persistDebugHudEnabled(false);
+        applyDebugHud(false);
+        return;
+    }
+
+    const enabled = checkbox.checked === true;
+    persistDebugHudEnabled(enabled);
+    applyDebugHud(enabled);
+}
+
+function syncDebugHudToggleUI() {
+    const checkbox = document.getElementById('admin-debug-hud-toggle');
+    if (!checkbox) return;
+
+    const admin = checkAdminSession();
+    const enabled = admin && (getDebugHudEnabled?.() ?? loadDebugHudEnabled());
+    checkbox.checked = enabled;
+    checkbox.disabled = !admin;
+    applyDebugHud(enabled);
+}
+
+function loadDebugHudEnabled() {
+    try {
+        return localStorage.getItem(DEBUG_HUD_STORAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function persistDebugHudEnabled(enabled) {
+    try {
+        localStorage.setItem(DEBUG_HUD_STORAGE_KEY, enabled ? '1' : '0');
+    } catch (err) {
+        console.warn('[admin] failed to persist debug hud preference', err);
+    }
+}
+
+function applyDebugHud(enabled) {
+    const safeEnabled = enabled === true && checkAdminSession();
+    onDebugHudToggle?.(safeEnabled);
 }
 
 // ========== Gallery Editor ==========
@@ -269,7 +355,7 @@ function showGalleryItemEditor(index) {
 
 function saveGalleryFromUI() {
     // Already saving on each action, just show confirmation
-    alert('Gallery saved!');
+    alert('ギャラリーを保存しました');
 }
 
 // ========== News Editor ==========
@@ -384,7 +470,7 @@ function showNewsItemEditor(index) {
 }
 
 function saveNewsFromUI() {
-    alert('News saved!');
+    alert('お知らせを保存しました');
 }
 
 // ========== Export/Import ==========
@@ -393,15 +479,15 @@ function renderExportPanel(container) {
 
     container.innerHTML = `
         <div class="admin-export">
-            <h3>📤 Export</h3>
-            <p>現在のGallery/Newsデータをコピーまたはダウンロードできます</p>
+            <h3>📤 エクスポート</h3>
+            <p>現在のギャラリー/お知らせデータをコピーまたはダウンロードできます</p>
             <textarea id="export-text" readonly rows="8">${exportJson}</textarea>
             <div class="admin-buttons">
                 <button id="export-copy-btn" class="admin-btn">📋 コピー</button>
                 <button id="export-download-btn" class="admin-btn">💾 ダウンロード</button>
             </div>
             
-            <h3>📥 Import</h3>
+            <h3>📥 インポート</h3>
             <p>JSONを貼り付けてインポート</p>
             <textarea id="import-text" rows="5" placeholder='{"gallery": {...}, "news": {...}}'></textarea>
             <div id="import-status" class="admin-status"></div>
@@ -446,6 +532,234 @@ function renderExportPanel(container) {
             alert('リセットしました。ページをリロードしてください。');
         }
     });
+}
+
+function renderDmMaintenancePanel(container) {
+    container.innerHTML = `
+        <div class="admin-export">
+            <h3>🧹 DMデータ削除</h3>
+            <p>無料枠節約のため、古いDMや全件DMを削除できます。</p>
+            <div class="form-group">
+                <label class="form-label" for="dm-purge-days">削除対象（日数より前）</label>
+                <input type="number" id="dm-purge-days" class="form-input" min="1" step="1" value="30">
+            </div>
+            <div class="admin-buttons">
+                <button id="dm-purge-before-btn" class="admin-btn">30日より前を削除</button>
+                <button id="dm-purge-all-btn" class="admin-btn danger">🗑️ DMを全削除</button>
+            </div>
+            <div id="dm-purge-status" class="admin-status"></div>
+        </div>
+    `;
+
+    const statusEl = document.getElementById('dm-purge-status');
+    const daysInput = document.getElementById('dm-purge-days');
+    const purgeBeforeBtn = document.getElementById('dm-purge-before-btn');
+    const purgeAllBtn = document.getElementById('dm-purge-all-btn');
+
+    function setStatus(text, ok) {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.className = ok ? 'admin-status success' : 'admin-status error';
+    }
+
+    function setBusy(busy) {
+        if (purgeBeforeBtn) purgeBeforeBtn.disabled = busy;
+        if (purgeAllBtn) purgeAllBtn.disabled = busy;
+    }
+
+    purgeBeforeBtn?.addEventListener('click', async () => {
+        const days = Math.max(1, Number(daysInput?.value) || 30);
+        if (!confirm(`${days}日より前のDMを削除します。よろしいですか？`)) return;
+
+        setBusy(true);
+        try {
+            const deleted = await adminPurgeDmBefore(days);
+            setStatus(`削除しました（削除件数: ${deleted}）`, true);
+        } catch (err) {
+            console.error('[admin] DM purge before failed', err);
+            setStatus('削除に失敗しました', false);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    purgeAllBtn?.addEventListener('click', async () => {
+        if (!confirm('DMを全件削除します。元に戻せません。実行しますか？')) return;
+
+        setBusy(true);
+        try {
+            const deleted = await adminPurgeDmAll();
+            setStatus(`削除しました（削除件数: ${deleted}）`, true);
+        } catch (err) {
+            console.error('[admin] DM purge all failed', err);
+            setStatus('削除に失敗しました', false);
+        } finally {
+            setBusy(false);
+        }
+    });
+}
+
+function renderGlobalMaintenancePanel(container) {
+    container.innerHTML = `
+        <div class="admin-export">
+            <h3>🧹 全体チャット削除</h3>
+            <p>全体チャット履歴を一覧確認し、1件削除または一括削除できます。</p>
+            <div class="form-group">
+                <label class="form-label" for="global-room-id">room_id（空欄で全ルーム）</label>
+                <input type="text" id="global-room-id" class="form-input" value="room:default" placeholder="room:default">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="global-purge-days">削除対象（日数より前）</label>
+                <input type="number" id="global-purge-days" class="form-input" min="1" step="1" value="30">
+            </div>
+            <div class="admin-buttons">
+                <button id="global-refresh-btn" class="admin-btn">一覧を更新</button>
+                <button id="global-purge-before-btn" class="admin-btn">30日より前を削除</button>
+                <button id="global-purge-all-btn" class="admin-btn danger">🗑️ 全体チャットを全削除</button>
+            </div>
+            <div id="global-purge-status" class="admin-status"></div>
+            <div class="admin-list" id="global-message-list"></div>
+        </div>
+    `;
+
+    const statusEl = document.getElementById('global-purge-status');
+    const roomInput = document.getElementById('global-room-id');
+    const daysInput = document.getElementById('global-purge-days');
+    const listEl = document.getElementById('global-message-list');
+    const refreshBtn = document.getElementById('global-refresh-btn');
+    const purgeBeforeBtn = document.getElementById('global-purge-before-btn');
+    const purgeAllBtn = document.getElementById('global-purge-all-btn');
+
+    function roomIdValue() {
+        const value = String(roomInput?.value || '').trim();
+        return value || null;
+    }
+
+    function setStatus(text, ok) {
+        if (!statusEl) return;
+        statusEl.textContent = text;
+        statusEl.className = ok ? 'admin-status success' : 'admin-status error';
+    }
+
+    function setBusy(busy) {
+        if (refreshBtn) refreshBtn.disabled = busy;
+        if (purgeBeforeBtn) purgeBeforeBtn.disabled = busy;
+        if (purgeAllBtn) purgeAllBtn.disabled = busy;
+        if (listEl) {
+            listEl.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+                btn.disabled = busy;
+            });
+        }
+    }
+
+    async function reloadList() {
+        if (!listEl) return;
+        listEl.innerHTML = '<div class="chat-empty">読み込み中...</div>';
+
+        try {
+            const rows = await fetchGlobalMessagesForAdmin({ roomId: roomIdValue(), limit: 200 });
+            if (!rows.length) {
+                listEl.innerHTML = '<div class="chat-empty">対象メッセージはありません。</div>';
+                return;
+            }
+
+            listEl.innerHTML = rows.map(row => {
+                const msg = String(row?.message || '').slice(0, 120);
+                const name = row?.sender_display_name || row?.sender_actor_id || '不明';
+                return `
+                    <div class="admin-item">
+                        <div class="item-header">
+                            <span class="item-title">${escapeHtml(name)}</span>
+                            <span class="item-date">${escapeHtml(formatAdminDate(row?.created_at))}</span>
+                            <div class="item-actions">
+                                <button class="item-btn danger" data-action="delete" data-id="${escapeHtml(row?.id || '')}" title="削除">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="item-meta">${escapeHtml(msg || '(空メッセージ)')}</div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            console.error('[admin] global list fetch failed', err);
+            listEl.innerHTML = '<div class="chat-empty">一覧の取得に失敗しました。</div>';
+        }
+    }
+
+    refreshBtn?.addEventListener('click', () => {
+        void reloadList();
+    });
+
+    purgeBeforeBtn?.addEventListener('click', async () => {
+        const days = Math.max(1, Number(daysInput?.value) || 30);
+        if (!confirm(`${days}日より前の全体チャットを削除します。よろしいですか？`)) return;
+
+        setBusy(true);
+        try {
+            const deleted = await adminPurgeGlobalBefore(days, roomIdValue());
+            setStatus(`削除しました（削除件数: ${deleted}）`, true);
+            await reloadList();
+        } catch (err) {
+            console.error('[admin] global purge before failed', err);
+            setStatus('削除に失敗しました', false);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    purgeAllBtn?.addEventListener('click', async () => {
+        if (!confirm('全体チャットを全件削除します。元に戻せません。実行しますか？')) return;
+
+        setBusy(true);
+        try {
+            const deleted = await adminPurgeGlobalAll(roomIdValue());
+            setStatus(`削除しました（削除件数: ${deleted}）`, true);
+            await reloadList();
+        } catch (err) {
+            console.error('[admin] global purge all failed', err);
+            setStatus('削除に失敗しました', false);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    listEl?.addEventListener('click', async (e) => {
+        const btn = e.target.closest?.('button[data-action="delete"]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        if (!id) return;
+        if (!confirm('このメッセージを削除します。よろしいですか？')) return;
+
+        setBusy(true);
+        try {
+            const deleted = await adminDeleteGlobalMessage(id);
+            if (deleted > 0) {
+                setStatus('削除しました（削除件数: 1）', true);
+            } else {
+                setStatus('対象メッセージが見つかりませんでした', false);
+            }
+            await reloadList();
+        } catch (err) {
+            console.error('[admin] global delete failed', err);
+            setStatus('削除に失敗しました', false);
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    void reloadList();
+}
+
+function formatAdminDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString('ja-JP', { hour12: false });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
 }
 
 export function isAdminModalVisible() {

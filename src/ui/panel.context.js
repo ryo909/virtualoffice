@@ -6,26 +6,34 @@ import { getRoomSettings } from '../services/db.js';
 let roomSettings = new Map();
 let onOpenZoom = null;
 let onOpenRoomChat = null;
-let onSit = null;
-let onStand = null;
+let onClaimDesk = null;
+let onSeatDesk = null;
+let onLeaveSeat = null;
+let onUnclaimDesk = null;
 let onPoke = null;
 let onDm = null;
 let onCall = null;
-let onDeskCallJoin = null;
-let onDeskCallMute = null;
-let onDeskCallHangup = null;
+let onCallAccept = null;
+let onCallReject = null;
+let onCallCancel = null;
+let onCallMute = null;
+let onCallEnd = null;
 
 export function initContextPanel(callbacks) {
     onOpenZoom = callbacks.openZoom;
     onOpenRoomChat = callbacks.openRoomChat;
-    onSit = callbacks.sit;
-    onStand = callbacks.stand;
+    onClaimDesk = callbacks.claimDesk;
+    onSeatDesk = callbacks.seatDesk;
+    onLeaveSeat = callbacks.leaveSeat;
+    onUnclaimDesk = callbacks.unclaimDesk;
     onPoke = callbacks.poke;
     onDm = callbacks.dm;
     onCall = callbacks.call;
-    onDeskCallJoin = callbacks.deskCallJoin;
-    onDeskCallMute = callbacks.deskCallMute;
-    onDeskCallHangup = callbacks.deskCallHangup;
+    onCallAccept = callbacks.callAccept;
+    onCallReject = callbacks.callReject;
+    onCallCancel = callbacks.callCancel;
+    onCallMute = callbacks.callMute;
+    onCallEnd = callbacks.callEnd;
 }
 
 export async function loadRoomSettings() {
@@ -70,14 +78,14 @@ function showSpotPanel(spot, title, actions) {
 
         html += `
       <button class="btn btn-primary" id="ctx-open-zoom" ${!hasUrl ? 'disabled' : ''}>
-        ${hasUrl ? '📹 Open Zoom' : 'Zoom URL未設定'}
+	        ${hasUrl ? '📹 Zoomを開く' : 'Zoom URL未設定'}
       </button>
     `;
     }
 
     // Room chat button
     if (spot.ui?.showRoomChat) {
-        html += `<button class="btn btn-secondary" id="ctx-room-chat">💬 Room Chat</button>`;
+        html += `<button class="btn btn-secondary" id="ctx-room-chat">💬 ルームチャット</button>`;
     }
 
     actions.innerHTML = html;
@@ -100,51 +108,114 @@ function showSpotPanel(spot, title, actions) {
 }
 
 function showDeskPanel(desk, title, actions, meta = {}) {
-    const seated = meta.seated === true;
+    const claimed = meta.claimed === true;
+    const seatLocked = meta.seatLocked === true;
     const occupant = meta.occupant || null;
+    const participantDisplayName = meta.callState?.peerDisplayName || null;
+    const claimedByDisplayName = meta.claimedByDisplayName
+        || occupant?.claimedByDisplayName
+        || occupant?.displayName
+        || participantDisplayName
+        || null;
     const callState = meta.callState || {};
     const forced = meta.forced === true;
     const callStatus = callState.status || 'idle';
-    const inCall = callStatus === 'in_call' || callStatus === 'connecting';
+    const callPeerId = callState.peerActorId || null;
+    const callPeerLabel = callState.peerDisplayName || (callPeerId ? callPeerId.slice(0, 6) : '');
+    const callDurationSec = callState.startedAt ? Math.max(0, Math.floor((Date.now() - callState.startedAt) / 1000)) : 0;
 
-    title.textContent = `Desk ${desk.id.replace('desk:', '')}`;
+    function labelStatus(s) {
+        switch (s) {
+            case 'idle': return '非通話';
+            case 'calling': return '発信中…';
+            case 'ringing': return '着信中';
+            case 'in_call': return '通話中';
+            default: return s || '不明';
+        }
+    }
+
+    function formatDuration(totalSeconds) {
+        const mm = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+        const ss = String(totalSeconds % 60).padStart(2, '0');
+        return `${mm}:${ss}`;
+    }
+
+    function buildCallButtons() {
+        if (callStatus === 'calling') {
+            return `<button class="btn btn-secondary" id="ctx-call-cancel">⏹ キャンセル</button>`;
+        }
+        if (callStatus === 'ringing') {
+            return `
+            <button class="btn btn-primary" id="ctx-call-accept">✅ 応答</button>
+            <button class="btn btn-secondary" id="ctx-call-reject">❌ 拒否</button>
+          `;
+        }
+        if (callStatus === 'in_call') {
+            return `
+            <button class="btn btn-secondary" id="ctx-call-mute">${callState.muted ? '🔈 ミュート解除' : '🔇 ミュート'}</button>
+            <button class="btn btn-secondary" id="ctx-call-end">⏹ 通話終了</button>
+          `;
+        }
+        if (occupant) {
+            return `<button class="btn btn-primary" id="ctx-call">📞 発信</button>`;
+        }
+        return '';
+    }
+
+    function buildDeskButtons() {
+        if (seatLocked) {
+            return `<button class="btn btn-secondary" id="ctx-stand">🚶 立つ</button>`;
+        }
+        if (claimed) {
+            return `
+            <button class="btn btn-primary" id="ctx-seat">🪑 着席</button>
+            <button class="btn btn-secondary" id="ctx-unclaim">↩ 確保解除</button>
+          `;
+        }
+        return `<button class="btn btn-primary" id="ctx-claim">🪑 席を確保</button>`;
+    }
+
+    function deskStatusLabel() {
+        if (seatLocked) return `🪑 着席中（移動固定）${forced ? '（強制）' : ''}`;
+        if (claimed) return '🪑 席を確保中';
+        return '🪑 未確保';
+    }
+
+    title.textContent = `デスク ${desk.id.replace('desk:', '')}`;
 
     let html = '';
-
-    if (seated) {
-        // Currently seated
-        html += `<div class="context-status">🪑 Seated${forced ? ' (forced)' : ''}</div>`;
-        html += `<div class="context-status">📞 Call: ${callStatus}</div>`;
-        if (!inCall) {
-            html += `<button class="btn btn-primary" id="ctx-join-call">📞 通話に参加</button>`;
-        } else {
-            html += `<button class="btn btn-secondary" id="ctx-mute-call">${callState.muted ? '🔈 Unmute' : '🔇 Mute'}</button>`;
-            html += `<button class="btn btn-secondary" id="ctx-hangup-call">⏹ Hang up</button>`;
-        }
-        html += `<button class="btn btn-secondary" id="ctx-stand">🚶 Stand</button>`;
-    } else if (occupant) {
-        // Someone else is sitting here
-        html += `
-      <button class="btn btn-secondary" id="ctx-dm">💬 DM</button>
-      <button class="btn btn-secondary" id="ctx-poke">👆 Poke</button>
-      <button class="btn btn-primary" id="ctx-call">📞 Call</button>
-    `;
-    } else {
-        // Empty desk
-        html += `<button class="btn btn-primary" id="ctx-sit">🪑 Sit</button>`;
+    html += `<div class="context-status">${deskStatusLabel()}</div>`;
+    if (claimed || seatLocked || occupant || claimedByDisplayName) {
+        html += `<div class="context-status">👤 確保者: ${escapeHtml(claimedByDisplayName || '不明')}</div>`;
     }
+
+    html += `<div class="context-status">📞 ${labelStatus(callStatus)}${callStatus === 'in_call' ? `（${formatDuration(callDurationSec)}）` : ''}${callPeerLabel ? ` / ${callPeerLabel}` : ''}</div>`;
+
+    if (occupant) {
+        html += `
+        <button class="btn btn-secondary" id="ctx-dm">💬 DM</button>
+        <button class="btn btn-secondary" id="ctx-poke">👆 つつく</button>
+      `;
+    }
+
+    html += buildCallButtons();
+    html += buildDeskButtons();
 
     actions.innerHTML = html;
 
     // Attach event listeners
-    document.getElementById('ctx-sit')?.addEventListener('click', () => onSit?.(desk));
-    document.getElementById('ctx-stand')?.addEventListener('click', () => onStand?.());
+    document.getElementById('ctx-claim')?.addEventListener('click', () => onClaimDesk?.(desk));
+    document.getElementById('ctx-seat')?.addEventListener('click', () => onSeatDesk?.(desk));
+    document.getElementById('ctx-stand')?.addEventListener('click', () => onLeaveSeat?.(desk));
+    document.getElementById('ctx-unclaim')?.addEventListener('click', () => onUnclaimDesk?.(desk));
     document.getElementById('ctx-dm')?.addEventListener('click', () => onDm?.(occupant));
     document.getElementById('ctx-poke')?.addEventListener('click', () => onPoke?.(occupant));
     document.getElementById('ctx-call')?.addEventListener('click', () => onCall?.(occupant));
-    document.getElementById('ctx-join-call')?.addEventListener('click', () => onDeskCallJoin?.(desk));
-    document.getElementById('ctx-mute-call')?.addEventListener('click', () => onDeskCallMute?.());
-    document.getElementById('ctx-hangup-call')?.addEventListener('click', () => onDeskCallHangup?.());
+    document.getElementById('ctx-call-accept')?.addEventListener('click', () => onCallAccept?.());
+    document.getElementById('ctx-call-reject')?.addEventListener('click', () => onCallReject?.());
+    document.getElementById('ctx-call-cancel')?.addEventListener('click', () => onCallCancel?.());
+    document.getElementById('ctx-call-mute')?.addEventListener('click', () => onCallMute?.());
+    document.getElementById('ctx-call-end')?.addEventListener('click', () => onCallEnd?.());
 }
 
 function showUserPanel(user, title, actions) {
@@ -152,8 +223,8 @@ function showUserPanel(user, title, actions) {
 
     actions.innerHTML = `
     <button class="btn btn-secondary" id="ctx-dm">💬 DM</button>
-    <button class="btn btn-secondary" id="ctx-poke">👆 Poke</button>
-    <button class="btn btn-primary" id="ctx-warp">📍 Warp near</button>
+    <button class="btn btn-secondary" id="ctx-poke">👆 つつく</button>
+    <button class="btn btn-primary" id="ctx-warp">📍 近くにワープ</button>
   `;
 
     document.getElementById('ctx-dm')?.addEventListener('click', () => onDm?.(user));
@@ -170,11 +241,17 @@ export function hideContextPanel() {
     }
 }
 
-export function updateDeskPanel(desk, seated, occupant, callState, forced = false) {
+export function updateDeskPanel(desk, claimed, seatLocked, occupant, callState, forced = false, claimedByDisplayName = null) {
     const title = document.getElementById('context-title');
     const actions = document.getElementById('context-actions');
 
     if (title && actions) {
-        showDeskPanel(desk, title, actions, { seated, occupant, callState, forced });
+        showDeskPanel(desk, title, actions, { claimed, seatLocked, occupant, callState, forced, claimedByDisplayName });
     }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text ?? '';
+    return div.innerHTML;
 }

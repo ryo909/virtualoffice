@@ -36,7 +36,7 @@ function renderResults() {
     if (!container) return;
 
     if (searchResults.length === 0) {
-        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-textMuted);">No results found</div>';
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-textMuted);">該当するメンバーが見つかりません</div>';
         return;
     }
 
@@ -50,7 +50,7 @@ function renderResults() {
         <div class="person-name">${escapeHtml(p.displayName)}</div>
         <div class="person-location">${escapeHtml(p.location)}</div>
       </div>
-      <button class="btn btn-secondary" data-action="warp">Warp near</button>
+      <button class="btn btn-secondary" data-action="warp">近くにワープ</button>
     </div>
   `).join('');
 

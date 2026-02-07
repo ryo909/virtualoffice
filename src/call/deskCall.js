@@ -17,6 +17,7 @@ import {
     sendDeskCallEvent,
     leaveDeskCallChannel
 } from '../realtime/deskCallRealtime.js';
+import { getSelectedSpeakerId, isSpeakerSelectionSupported } from '../services/audioDevices.js';
 
 let mySessionId = null;
 let myJoinAt = null;
@@ -27,7 +28,8 @@ const state = {
     status: 'idle',
     muted: false,
     peerSessionId: null,
-    error: null
+    error: null,
+    participants: []
 };
 
 const remoteAudio = new Audio();
@@ -39,24 +41,47 @@ function setState(patch) {
     onStateChange?.(state, prev);
 }
 
+/**
+ * Apply selected speaker to remote audio element
+ */
+async function applySelectedSpeaker() {
+    if (!isSpeakerSelectionSupported()) return;
+
+    const speakerId = getSelectedSpeakerId();
+    if (!speakerId) return;
+
+    try {
+        await remoteAudio.setSinkId(speakerId);
+        console.log('[deskCall] Speaker applied:', speakerId);
+    } catch (err) {
+        console.warn('[deskCall] Failed to set speaker:', err);
+    }
+}
+
 export function initDeskCall({ sessionId, onStateChange: onChange }) {
     mySessionId = sessionId;
     onStateChange = onChange;
 
     initDeskWebRTC({
-        onIceCandidate: (candidate) => {
+        onIceCandidate: (payload) => {
+            const candidate = payload?.candidate;
+            if (!candidate) return;
             if (!state.peerSessionId) return;
+
             sendDeskCallEvent({
                 type: 'call_ice',
                 fromSessionId: mySessionId,
                 toSessionId: state.peerSessionId,
                 candidate,
                 ts: Date.now()
+            }).catch((err) => {
+                console.warn('[deskCall] failed to send ICE candidate', err);
             });
         },
         onTrack: (stream) => {
             remoteAudio.srcObject = stream;
-            remoteAudio.play().catch(() => {});
+            remoteAudio.play().catch(() => { });
+            applySelectedSpeaker(); // Apply speaker selection
         },
         onConnectionStateChange: (connectionState) => {
             if (connectionState === 'connected') {
@@ -73,18 +98,19 @@ export function getDeskCallState() {
     return { ...state };
 }
 
-export async function joinDeskCall(deskId) {
+export async function joinDeskCall(deskId, opts = {}) {
     if (!mySessionId) return false;
 
     if (state.deskId && state.deskId !== deskId) {
         await leaveDeskCall();
     }
 
-    setState({ deskId, status: 'ready', error: null });
+    setState({ deskId, status: 'ready', error: null, participants: [] });
 
     const join = await joinDeskCallChannel({
         deskId,
         sessionId: mySessionId,
+        displayName: opts.displayName || null,
         onEvent: handleEvent,
         onPresenceSync: handlePresence
     });
@@ -122,7 +148,27 @@ export function toggleDeskMute() {
     setState({ muted: !state.muted });
 }
 
+function computeParticipants(presenceState) {
+    const participants = [];
+    Object.entries(presenceState || {}).forEach(([key, presences]) => {
+        if (!presences || presences.length === 0) return;
+        const p = presences[0];
+        if (!p?.sessionId) return;
+        participants.push({
+            sessionId: p.sessionId,
+            displayName: p.displayName || null,
+            joinedAt: p.joinedAt || 0
+        });
+    });
+    participants.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+    return participants;
+}
+
 async function handlePresence(presenceState) {
+    // Always update participants list
+    const participants = computeParticipants(presenceState);
+    setState({ participants });
+
     if (!presenceState || state.status !== 'ready') return;
 
     const others = [];
@@ -201,7 +247,8 @@ async function handleOffer(payload) {
 
 async function handleAnswer(payload) {
     if (state.status !== 'connecting') return;
-    if (payload.toSessionId && payload.toSessionId !== mySessionId) return;
+    if (payload?.toSessionId && payload.toSessionId !== mySessionId) return;
+    if (!payload?.sdp) return;
 
     try {
         await setDeskRemoteDescription(payload.sdp);
@@ -213,12 +260,19 @@ async function handleAnswer(payload) {
 }
 
 async function handleIce(payload) {
-    if (payload.toSessionId && payload.toSessionId !== mySessionId) return;
-    await addDeskIceCandidate(payload.candidate);
+    if (payload?.toSessionId && payload.toSessionId !== mySessionId) return;
+    const candidate = payload?.candidate;
+    if (!candidate) return;
+
+    try {
+        await addDeskIceCandidate({ candidate });
+    } catch (err) {
+        console.warn('[deskCall] handleIce failed', err, candidate);
+    }
 }
 
 function handleHangup(payload) {
-    if (payload.toSessionId && payload.toSessionId !== mySessionId) return;
+    if (payload?.toSessionId && payload.toSessionId !== mySessionId) return;
     closeDeskPeerConnection();
     setState({ status: 'ended', peerSessionId: null });
 }
@@ -229,13 +283,19 @@ function handleEvent(payload) {
 
     switch (payload.type) {
         case 'call_offer':
-            handleOffer(payload);
+            void handleOffer(payload).catch((err) => {
+                console.warn('[deskCall] handleOffer failed', err);
+            });
             break;
         case 'call_answer':
-            handleAnswer(payload);
+            void handleAnswer(payload).catch((err) => {
+                console.warn('[deskCall] handleAnswer failed', err);
+            });
             break;
         case 'call_ice':
-            handleIce(payload);
+            void handleIce(payload).catch((err) => {
+                console.warn('[deskCall] handleIce failed', err);
+            });
             break;
         case 'call_hangup':
             handleHangup(payload);

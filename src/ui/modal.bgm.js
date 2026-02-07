@@ -19,7 +19,7 @@ export function initBgmModal() {
     bgmModal.id = 'modal-bgm';
     bgmModal.innerHTML = `
         <div class="modal-header">
-            <h2 class="modal-title" id="bgm-modal-title">Garden BGM</h2>
+            <h2 class="modal-title" id="bgm-modal-title">ガーデンBGM</h2>
             <button type="button" class="modal-close-btn" id="bgm-modal-close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6 6 18M6 6l12 12" />
@@ -55,7 +55,7 @@ export function initBgmModal() {
     });
 }
 
-export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden BGM' } = {}) {
+export function showBgmModal({ tracks = [], selectedId = null, title = 'ガーデンBGM' } = {}) {
     if (!bgmModal) return;
 
     const titleEl = document.getElementById('bgm-modal-title');
@@ -65,7 +65,7 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
     const selected = selectedId || localStorage.getItem(STORAGE_SELECTED) || 'none';
     const bgmState = getBgmState?.() || {};
     const activeTrackId = bgmState.isPlaying ? bgmState.playingId : selected;
-    const nowPlayingTitle = bgmState.isPlaying ? (bgmState.playingTitle || 'Unknown') : 'Stopped';
+    const nowPlayingTitle = bgmState.isPlaying ? (bgmState.playingTitle || '不明') : '停止中';
 
     const trackButtons = tracks.map(track => {
         const active = track.id === activeTrackId ? 'data-active="true"' : '';
@@ -73,7 +73,7 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
             <button type="button" class="spot-link-item" data-track-id="${track.id}" ${active}>
                 <div class="spot-link-header">
                     <span class="spot-link-label">${track.title}</span>
-                    ${(bgmState.playingId === track.id && bgmState.isPlaying) ? '<span class="spot-playing">Playing</span>' : ''}
+                    ${(bgmState.playingId === track.id && bgmState.isPlaying) ? '<span class="spot-playing">再生中</span>' : ''}
                 </div>
             </button>
         `;
@@ -81,18 +81,18 @@ export function showBgmModal({ tracks = [], selectedId = null, title = 'Garden B
 
     body.innerHTML = `
         <div class="spot-link-item bgm-now-playing">
-            <span>Now Playing</span>
+            <span>再生中</span>
             <strong>${nowPlayingTitle}</strong>
         </div>
         <div class="spot-links-list bgm-track-list">
-            ${trackButtons || '<div class="spot-link-item">No tracks</div>'}
+            ${trackButtons || '<div class="spot-link-item">トラックがありません</div>'}
         </div>
         <div class="spot-links-list" style="margin-top: 12px; gap: 12px;">
             <div class="spot-link-item" style="align-items: center;">
-                <label style="flex: 1;">Volume</label>
+                <label style="flex: 1;">音量</label>
                 <input id="bgm-volume" type="range" min="0" max="1" step="0.01" value="${getCurrentVolume()}" />
             </div>
-            <button type="button" class="spot-link-item" id="bgm-stop-btn">Stop</button>
+            <button type="button" class="spot-link-item" id="bgm-stop-btn">停止</button>
         </div>
     `;
 

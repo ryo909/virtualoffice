@@ -1,6 +1,7 @@
 // deskWebrtc.js - WebRTC connection management for desk calls (separate from direct calls)
 
 import { getConfig } from '../services/supabaseClient.js';
+import { getSelectedMicId } from '../services/audioDevices.js';
 
 let peerConnection = null;
 let localStream = null;
@@ -11,9 +12,9 @@ let onTrack = null;
 let onConnectionStateChange = null;
 
 export function initDeskWebRTC(callbacks) {
-    onIceCandidate = callbacks.onIceCandidate;
-    onTrack = callbacks.onTrack;
-    onConnectionStateChange = callbacks.onConnectionStateChange;
+    onIceCandidate = callbacks?.onIceCandidate || null;
+    onTrack = callbacks?.onTrack || null;
+    onConnectionStateChange = callbacks?.onConnectionStateChange || null;
 }
 
 export async function createDeskPeerConnection() {
@@ -25,8 +26,18 @@ export async function createDeskPeerConnection() {
     peerConnection = new RTCPeerConnection({ iceServers });
 
     peerConnection.onicecandidate = (event) => {
-        if (event.candidate && onIceCandidate) {
-            onIceCandidate(event.candidate);
+        try {
+            const candidate = event?.candidate;
+            if (!candidate) return;
+            console.log('[ICE] local candidate', candidate);
+            const result = onIceCandidate?.({ candidate });
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => {
+                    console.warn('[deskWebrtc] onIceCandidate callback failed', err);
+                });
+            }
+        } catch (err) {
+            console.warn('[deskWebrtc] onicecandidate handler failed', err);
         }
     };
 
@@ -47,10 +58,28 @@ export async function createDeskPeerConnection() {
 }
 
 export async function getDeskUserMedia() {
-    localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false
-    });
+    const micId = getSelectedMicId();
+
+    // Build audio constraint with selected device if available
+    const audioConstraint = micId
+        ? { deviceId: { exact: micId } }
+        : true;
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraint,
+            video: false
+        });
+        console.log('[deskWebrtc] getUserMedia success, mic:', micId || 'default');
+    } catch (err) {
+        // Fallback to default mic if specific device fails
+        console.warn('[deskWebrtc] getUserMedia with deviceId failed, fallback to default', err);
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false
+        });
+    }
+
     return localStream;
 }
 
@@ -80,12 +109,24 @@ export async function setDeskRemoteDescription(description) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(description));
 }
 
-export async function addDeskIceCandidate(candidate) {
+export async function addDeskIceCandidate(payload) {
     if (!peerConnection) return;
+    const candidate = payload?.candidate;
+    if (!candidate) return;
+
+    console.log('[ICE] remote candidate received', candidate);
+
+    const candidateInit = typeof candidate === 'string'
+        ? { candidate }
+        : candidate;
+
     try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        const iceCandidate = candidate instanceof RTCIceCandidate
+            ? candidate
+            : new RTCIceCandidate(candidateInit);
+        await peerConnection.addIceCandidate(iceCandidate);
     } catch (err) {
-        console.error('[DeskCall] Failed to add ICE candidate:', err);
+        console.warn('[deskWebrtc] addIceCandidate failed', err, candidateInit);
     }
 }
 

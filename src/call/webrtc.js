@@ -11,9 +11,9 @@ let onTrack = null;
 let onConnectionStateChange = null;
 
 export function initWebRTC(callbacks) {
-    onIceCandidate = callbacks.onIceCandidate;
-    onTrack = callbacks.onTrack;
-    onConnectionStateChange = callbacks.onConnectionStateChange;
+    onIceCandidate = callbacks?.onIceCandidate || null;
+    onTrack = callbacks?.onTrack || null;
+    onConnectionStateChange = callbacks?.onConnectionStateChange || null;
 }
 
 export async function createPeerConnection() {
@@ -25,8 +25,18 @@ export async function createPeerConnection() {
     peerConnection = new RTCPeerConnection({ iceServers });
 
     peerConnection.onicecandidate = (event) => {
-        if (event.candidate && onIceCandidate) {
-            onIceCandidate(event.candidate);
+        try {
+            const candidate = event?.candidate;
+            if (!candidate) return;
+            console.log('[ICE] local candidate', candidate);
+            const result = onIceCandidate?.({ candidate });
+            if (result && typeof result.catch === 'function') {
+                result.catch((err) => {
+                    console.warn('[webrtc] onIceCandidate callback failed', err);
+                });
+            }
+        } catch (err) {
+            console.warn('[webrtc] onicecandidate handler failed', err);
         }
     };
 
@@ -92,13 +102,24 @@ export async function setRemoteDescription(description) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(description));
 }
 
-export async function addIceCandidate(candidate) {
+export async function addIceCandidate(payload) {
     if (!peerConnection) return;
+    const candidate = payload?.candidate;
+    if (!candidate) return;
+
+    console.log('[ICE] remote candidate received', candidate);
+
+    const candidateInit = typeof candidate === 'string'
+        ? { candidate }
+        : candidate;
 
     try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        const iceCandidate = candidate instanceof RTCIceCandidate
+            ? candidate
+            : new RTCIceCandidate(candidateInit);
+        await peerConnection.addIceCandidate(iceCandidate);
     } catch (err) {
-        console.error('Failed to add ICE candidate:', err);
+        console.warn('[webrtc] addIceCandidate failed', err, candidateInit);
     }
 }
 

@@ -31,6 +31,28 @@ export function getSupabase() {
     return supabaseClient;
 }
 
+export function setActorIdHeader(actorId) {
+    if (!supabaseClient) return;
+    const value = actorId ? String(actorId) : '';
+
+    try {
+        if (supabaseClient.rest?.headers) {
+            supabaseClient.rest.headers['x-actor-id'] = value;
+        }
+    } catch (err) {
+        console.warn('[supabase] failed to set x-actor-id on rest headers', err);
+    }
+
+    try {
+        if (supabaseClient.realtime) {
+            const prev = supabaseClient.realtime.headers || {};
+            supabaseClient.realtime.headers = { ...prev, 'x-actor-id': value };
+        }
+    } catch (err) {
+        console.warn('[supabase] failed to set x-actor-id on realtime headers', err);
+    }
+}
+
 export async function getSession() {
     const client = getSupabase();
     if (!client) return null;

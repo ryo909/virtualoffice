@@ -52,7 +52,7 @@ export function initGlobalChatRealtime({ getMyName, onMessage }) {
 async function sendChatMessage({ supabase, getMyName, text }) {
     if (!channel) return null;
 
-    const name = (getMyName?.() || 'anonymous').trim() || 'anonymous';
+    const name = (getMyName?.() || '不明').trim() || '不明';
     const msg = {
         id: crypto.randomUUID(),
         name,

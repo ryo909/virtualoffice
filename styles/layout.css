@@ -200,6 +200,24 @@
 #context-panel .panel-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+#context-panel {
+    flex-wrap: wrap;
+    max-width: min(92vw, 720px);
+}
+
+.context-status {
+    font-size: 13px;
+    color: var(--color-textSecondary);
+    margin-left: 8px;
+}
+
+.context-substatus {
+    font-size: 12px;
+    color: var(--color-textMuted, #888);
+    margin-left: 8px;
 }
 
 .btn {
@@ -396,6 +414,77 @@
     word-wrap: break-word;
 }
 
+#menubar .nav-btn[data-drawer="chat"] {
+    position: relative;
+}
+
+#menubar .chat-unread-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--color-danger);
+    display: none;
+}
+
+#menubar .chat-unread-dot.visible {
+    display: block;
+}
+
+.chat-empty {
+    margin: 24px 8px;
+    color: var(--color-textMuted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.chat-section-title {
+    margin: 10px 4px 2px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-textSecondary);
+}
+
+.chat-thread-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--color-bgPrimary);
+    color: var(--color-text);
+}
+
+.chat-thread-item:hover {
+    background: var(--color-bgSecondary);
+}
+
+.chat-thread-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.chat-thread-preview {
+    color: var(--color-textSecondary);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-thread-unread {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #dc2626;
+    font-weight: 600;
+}
+
 .chat-input-container {
     padding: 12px 16px;
     border-top: 1px solid var(--color-border);
@@ -465,12 +554,29 @@
     min-width: 0;
 }
 
+.person-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
 .person-name {
     font-weight: 600;
     color: var(--color-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.person-call-badge {
+    font-size: 11px;
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+    border-radius: 999px;
+    padding: 1px 6px;
+    white-space: nowrap;
 }
 
 .person-location {
@@ -1645,6 +1751,14 @@
 .admin-status.error {
     background: rgba(244, 67, 54, 0.1);
     color: var(--color-danger);
+}
+
+#debug-hud {
+    display: none;
+}
+
+body.debug-hud-on #debug-hud {
+    display: block !important;
 }
 
 /* ========== Spot Modal Rich Content ========== */

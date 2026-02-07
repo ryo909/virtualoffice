@@ -320,7 +320,8 @@ export function render(
     clickMarkerTime = 0,
     deltaMs = 16,
     currentAreaId = getActiveArea(),
-    timeOfDayId = 'day'
+    timeOfDayId = 'day',
+    presenceState = null
 ) {
     if (!ctx) return;
 
@@ -370,6 +371,11 @@ export function render(
         drawDebugSpots();
     }
 
+    // === Layer 2.5: Desk occupant labels ===
+    if (presenceState && world.desks) {
+        drawDeskOccupantLabels(world.desks, presenceState);
+    }
+
     // === Layer 3: Click marker ===
     if (clickMarker) {
         drawClickMarkerPixel(clickMarker.x, clickMarker.y, clickMarkerTime);
@@ -380,12 +386,14 @@ export function render(
         const state = getAnimationState(player.actorId || player.displayName);
         renderPixelAvatar(ctx, player.pos.x, player.pos.y, player.displayName, state, camera.zoom, false);
         renderNameTag(ctx, player.pos.x, player.pos.y, player.displayName, player.status, camera.zoom);
+        drawCallBadge(player.pos.x, player.pos.y, player.callStatus, camera.zoom);
     });
 
     // === Layer 5: Current player (pixel avatar) ===
     const playerState = getAnimationState(me.actorId || 'me');
     renderPixelAvatar(ctx, playerPos.x, playerPos.y, me.displayName || 'You', playerState, camera.zoom, true);
     renderNameTag(ctx, playerPos.x, playerPos.y, me.displayName || 'You', me.status || 'online', camera.zoom);
+    drawCallBadge(playerPos.x, playerPos.y, me.callStatus, camera.zoom);
 
     // === Debug collision overlays ===
     if (window.DEBUG_COLLISION) {
@@ -795,6 +803,81 @@ function drawClickMarkerPixel(x, y, startTime) {
     ctx.arc(0, 0, 3, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.restore();
+}
+
+/**
+ * Draw occupant labels on desks
+ * @param {Array} desks - List of desk objects
+ * @param {Map} peopleMap - Map of actorId -> person object (from getPeople())
+ */
+function drawDeskOccupantLabels(desks, peopleMap) {
+    if (!desks || !peopleMap || !(peopleMap instanceof Map)) return;
+
+    // Build occupant map: deskId -> person
+    const occupantMap = new Map();
+    for (const [actorId, p] of peopleMap) {
+        const deskId = p?.seatLockedDeskId || p?.seatedDeskId;
+        if (deskId) {
+            occupantMap.set(deskId, p);
+        }
+    }
+
+    desks.forEach(desk => {
+        const occupant = occupantMap.get(desk.id);
+        if (!occupant) return;
+
+        const pos = desk.pos || desk.posAbs;
+        if (!pos) return;
+
+        const label = (occupant.displayName || '??').slice(0, 2).toUpperCase();
+
+        // Draw label background + text
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.beginPath();
+        ctx.roundRect(pos.x - 14, pos.y - 30, 28, 16, 4);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, pos.x, pos.y - 22);
+        ctx.restore();
+    });
+}
+
+function drawCallBadge(x, y, callStatus, zoom = 1) {
+    if (!callStatus || callStatus === 'idle') return;
+
+    const statusColor = callStatus === 'in_call'
+        ? '#16a34a'
+        : (callStatus === 'ringing' ? '#f59e0b' : '#0ea5e9');
+
+    const radius = Math.max(6, 6 / Math.max(0.7, zoom));
+    const cx = x + 18 / Math.max(0.7, zoom);
+    const cy = y - 28 / Math.max(0.7, zoom);
+
+    ctx.save();
+    ctx.fillStyle = statusColor;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (callStatus === 'in_call') {
+        ctx.strokeStyle = 'rgba(22,163,74,0.45)';
+        ctx.lineWidth = Math.max(1, 2 / Math.max(0.7, zoom));
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius + 3 / Math.max(0.7, zoom), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${Math.max(8, 8 / Math.max(0.7, zoom))}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('☎', cx, cy + 0.5);
     ctx.restore();
 }
 

@@ -5,6 +5,7 @@ import { getSupabase } from './supabaseClient.js';
 let presenceChannel = null;
 let eventChannels = [];
 let chatChannels = [];
+let presenceStateCache = null;
 
 const callbacks = {
     onPresenceChange: null,
@@ -26,6 +27,7 @@ export function initRealtime({ supabase, me, onPresenceChange, onEvent, onChat }
  */
 export async function joinPresence({ presenceChannelKey, initialState }) {
     const supabase = getSupabase();
+    presenceStateCache = { ...(initialState || {}) };
 
     presenceChannel = supabase.channel(presenceChannelKey, {
         config: {
@@ -50,7 +52,7 @@ export async function joinPresence({ presenceChannelKey, initialState }) {
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                await presenceChannel.track(initialState);
+                await presenceChannel.track(presenceStateCache || {});
             }
         });
 
@@ -62,8 +64,14 @@ export async function joinPresence({ presenceChannelKey, initialState }) {
  */
 export async function updatePresence(patch) {
     if (!presenceChannel) return;
+    if (!patch || typeof patch !== 'object') return;
 
-    await presenceChannel.track(patch);
+    presenceStateCache = {
+        ...(presenceStateCache || {}),
+        ...patch
+    };
+
+    await presenceChannel.track(presenceStateCache);
 }
 
 /**
@@ -75,6 +83,7 @@ export async function leavePresence() {
     await presenceChannel.untrack();
     await presenceChannel.unsubscribe();
     presenceChannel = null;
+    presenceStateCache = null;
 }
 
 /**
@@ -86,9 +95,13 @@ export function subscribeEvents({ myActorId }) {
     // Subscribe to direct events
     const directChannel = supabase.channel(`evt:to:${myActorId}`);
     directChannel
-        .on('broadcast', { event: 'evt' }, ({ payload }) => {
-            if (callbacks.onEvent) {
+        .on('broadcast', { event: 'evt' }, (event) => {
+            const payload = event?.payload;
+            if (!callbacks.onEvent || !payload) return;
+            try {
                 callbacks.onEvent(payload);
+            } catch (err) {
+                console.error('[realtime] onEvent callback failed (direct)', err, payload);
             }
         })
         .subscribe();
@@ -98,9 +111,13 @@ export function subscribeEvents({ myActorId }) {
     // Subscribe to all events
     const allChannel = supabase.channel('evt:all');
     allChannel
-        .on('broadcast', { event: 'evt' }, ({ payload }) => {
-            if (callbacks.onEvent) {
+        .on('broadcast', { event: 'evt' }, (event) => {
+            const payload = event?.payload;
+            if (!callbacks.onEvent || !payload) return;
+            try {
                 callbacks.onEvent(payload);
+            } catch (err) {
+                console.error('[realtime] onEvent callback failed (all)', err, payload);
             }
         })
         .subscribe();

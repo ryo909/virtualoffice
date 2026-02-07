@@ -495,8 +495,16 @@ function normalizeDesks(desks = [], size, floorRect) {
             };
         }
 
-        if (standAbs && posAbs && Math.abs(standAbs.x - posAbs.x) <= 60 && Math.abs(standAbs.y - posAbs.y) <= 60) {
-            standAbs = { x: posAbs.x + (standRaw?.x || 0), y: posAbs.y + (standRaw?.y || 0) };
+        // NOTE: standPoint is already absolute in our data.
+        // Do NOT add posAbs + standRaw; it can explode coordinates and teleport out of bounds.
+
+        // Safety: if standAbs is out of world bounds, fallback to posAbs
+        if (W && H && standAbs) {
+            const out = standAbs.x < 0 || standAbs.x > W || standAbs.y < 0 || standAbs.y > H;
+            if (out) {
+                console.warn('[desk] standPointAbs out of bounds -> fallback to posAbs', desk.id, standAbs, { W, H });
+                standAbs = posAbs;
+            }
         }
 
         next.posRaw = posRaw;

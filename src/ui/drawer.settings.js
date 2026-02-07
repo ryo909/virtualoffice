@@ -1,6 +1,11 @@
 // drawer.settings.js - Settings drawer
 
 import { setThemeId } from '../utils/storage.js';
+import {
+    getSelectedMicId, setSelectedMicId,
+    getSelectedSpeakerId, setSelectedSpeakerId,
+    unlockAndEnumerateDevices, isSpeakerSelectionSupported
+} from '../services/audioDevices.js';
 
 let onNameChange = null;
 let onStatusChange = null;
@@ -69,6 +74,92 @@ export function initSettingsDrawer({ nameChangeCallback, statusChangeCallback, l
         clearPwBtn.addEventListener('click', () => {
             if (onClearPassword) onClearPassword();
         });
+    }
+
+    // Audio device handling
+    initAudioSettings();
+}
+
+async function initAudioSettings() {
+    const micSelect = document.getElementById('audio-mic');
+    const speakerSelect = document.getElementById('audio-speaker');
+    const speakerHint = document.getElementById('audio-speaker-hint');
+    const refreshBtn = document.getElementById('audio-refresh');
+
+    if (!micSelect || !speakerSelect) return;
+
+    // Check speaker support
+    const speakerSupported = isSpeakerSelectionSupported();
+    if (!speakerSupported) {
+        speakerSelect.disabled = true;
+        if (speakerHint) {
+            speakerHint.textContent = 'スピーカー切替は未対応です（Chrome推奨）';
+        }
+    }
+
+    // Mic selection change
+    micSelect.addEventListener('change', () => {
+        const deviceId = micSelect.value;
+        setSelectedMicId(deviceId || null);
+        console.log('[Audio] Mic selected:', deviceId || 'default');
+    });
+
+    // Speaker selection change
+    speakerSelect.addEventListener('change', () => {
+        const deviceId = speakerSelect.value;
+        setSelectedSpeakerId(deviceId || null);
+        console.log('[Audio] Speaker selected:', deviceId || 'default');
+    });
+
+    // Refresh button
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            populateAudioDevices();
+        });
+    }
+
+    // Initial population (delayed to let drawer open first)
+    setTimeout(() => {
+        populateAudioDevices();
+    }, 100);
+}
+
+async function populateAudioDevices() {
+    const micSelect = document.getElementById('audio-mic');
+    const speakerSelect = document.getElementById('audio-speaker');
+
+    if (!micSelect || !speakerSelect) return;
+
+    try {
+        const { inputs, outputs } = await unlockAndEnumerateDevices();
+        const savedMicId = getSelectedMicId();
+        const savedSpeakerId = getSelectedSpeakerId();
+
+        // Populate mic options
+        micSelect.innerHTML = '<option value="">-- デフォルト --</option>';
+        inputs.forEach((device, i) => {
+            const label = device.label || `マイク ${i + 1}`;
+            const opt = document.createElement('option');
+            opt.value = device.deviceId;
+            opt.textContent = label;
+            opt.selected = device.deviceId === savedMicId;
+            micSelect.appendChild(opt);
+        });
+
+        // Populate speaker options
+        speakerSelect.innerHTML = '<option value="">-- デフォルト --</option>';
+        outputs.forEach((device, i) => {
+            const label = device.label || `スピーカー ${i + 1}`;
+            const opt = document.createElement('option');
+            opt.value = device.deviceId;
+            opt.textContent = label;
+            opt.selected = device.deviceId === savedSpeakerId;
+            speakerSelect.appendChild(opt);
+        });
+
+        console.log('[Audio] Devices populated:', inputs.length, 'inputs,', outputs.length, 'outputs');
+    } catch (err) {
+        console.error('[Audio] Failed to enumerate devices:', err);
     }
 }
 

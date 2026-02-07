@@ -2,6 +2,7 @@
 
 let currentDrawer = 'none';
 let onDrawerChange = null;
+let chatUnreadCount = 0;
 
 export function initMenubar(callback) {
     onDrawerChange = callback;
@@ -66,4 +67,18 @@ export function updateStatus(status) {
 
 export function getCurrentDrawer() {
     return currentDrawer;
+}
+
+export function setChatUnreadBadge({ hasUnread = false, count = 0 } = {}) {
+    const dot = document.getElementById('chat-unread-dot');
+    const safeCount = Math.max(0, Number(count) || 0);
+    chatUnreadCount = safeCount;
+
+    if (dot) {
+        dot.classList.toggle('visible', !!hasUnread || safeCount > 0);
+    }
+}
+
+export function getChatUnreadCount() {
+    return chatUnreadCount;
 }
