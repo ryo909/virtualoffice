@@ -1,26 +1,108 @@
 {
-  "meta": { "id": "map:library", "version": 1, "width": 512, "height": 512, "image": "assets/maps/library.png" },
+  "meta": {
+    "id": "map:library",
+    "version": 1,
+    "width": 512,
+    "height": 512,
+    "image": "assets/maps/library.png"
+  },
   "spawnPoints": {
-    "lobby": { "x": 256, "y": 120 }
+    "lobby": {
+      "x": 256,
+      "y": 120
+    }
   },
   "zones": [
-    { "id": "LibraryHall", "bounds": { "x": 64, "y": 48, "w": 384, "h": 304 } },
-    { "id": "LoungeBlocked", "bounds": { "x": 0, "y": 352, "w": 512, "h": 160 } }
+    {
+      "id": "LibraryHall",
+      "bounds": {
+        "x": 64,
+        "y": 48,
+        "w": 384,
+        "h": 304
+      }
+    },
+    {
+      "id": "LoungeBlocked",
+      "bounds": {
+        "x": 0,
+        "y": 352,
+        "w": 512,
+        "h": 160
+      }
+    }
   ],
   "walkable": [
-    { "x": 24, "y": 24, "w": 464, "h": 464 }
+    {
+      "x": 24,
+      "y": 24,
+      "w": 464,
+      "h": 464
+    }
   ],
   "obstacles": [
-    { "id": "wall_top", "x": 0, "y": 0, "w": 512, "h": 20 },
-    { "id": "wall_left", "x": 0, "y": 0, "w": 20, "h": 512 },
-    { "id": "wall_right", "x": 492, "y": 0, "w": 20, "h": 512 },
-    { "id": "wall_bottom", "x": 0, "y": 492, "w": 512, "h": 20 },
-    { "id": "bookshelf_wall_left", "x": 0, "y": 40, "w": 60, "h": 296 },
-    { "id": "librarian_counter_block", "x": 300, "y": 40, "w": 212, "h": 124 },
-    { "id": "round_table", "x": 156, "y": 170, "w": 200, "h": 160 },
-    { "id": "catalog_desk", "x": 388, "y": 210, "w": 72, "h": 70 },
-    { "id": "catalog_chair", "x": 462, "y": 232, "w": 30, "h": 50 },
-    { "id": "lounge_block_left", "x": 0, "y": 352, "w": 208, "h": 160 },
-    { "id": "lounge_block_right", "x": 304, "y": 352, "w": 208, "h": 160 }
+    {
+      "id": "wall_top",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 20
+    },
+    {
+      "id": "wall_left",
+      "x": 0,
+      "y": 0,
+      "w": 20,
+      "h": 512
+    },
+    {
+      "id": "wall_right",
+      "x": 492,
+      "y": 0,
+      "w": 20,
+      "h": 512
+    },
+    {
+      "id": "wall_bottom",
+      "x": 0,
+      "y": 492,
+      "w": 512,
+      "h": 20
+    },
+    {
+      "id": "bookshelf_wall_left",
+      "x": 0,
+      "y": 40,
+      "w": 60,
+      "h": 296
+    },
+    {
+      "id": "librarian_counter_block",
+      "x": 300,
+      "y": 28,
+      "w": 212,
+      "h": 112
+    },
+    {
+      "id": "round_table",
+      "x": 170,
+      "y": 182,
+      "w": 172,
+      "h": 136
+    },
+    {
+      "id": "catalog_desk",
+      "x": 400,
+      "y": 214,
+      "w": 62,
+      "h": 60
+    },
+    {
+      "id": "catalog_chair",
+      "x": 462,
+      "y": 232,
+      "w": 30,
+      "h": 50
+    }
   ]
 }

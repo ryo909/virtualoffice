@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'vo.profiles.v1';
+export const STORAGE_KEY = 'vo.profiles.v1';
 
 export function loadProfiles() {
     try {

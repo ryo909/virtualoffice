@@ -71,6 +71,51 @@
     height: 18px;
 }
 
+/* Nav Dropdown (Map Menu) */
+#menubar .nav-dropdown {
+    position: relative;
+}
+
+#menubar .nav-dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 120px;
+    background: var(--color-bgSecondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    overflow: hidden;
+}
+
+#menubar .nav-dropdown.open .nav-dropdown-content {
+    display: block;
+}
+
+#menubar .nav-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    text-align: left;
+    color: var(--color-text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#menubar .nav-dropdown-item:hover {
+    background: var(--color-bgTertiary);
+}
+
+#menubar .nav-dropdown-item.active {
+    background: var(--color-primary);
+    color: white;
+}
+
 #menubar .status-indicator {
     display: flex;
     align-items: center;
@@ -985,6 +1030,270 @@
 .library-detail-updated {
     font-size: 11px;
     color: var(--color-textSecondary);
+}
+
+/* ========== Library Notes Section ========== */
+.library-notes-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+.library-notes-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 12px;
+}
+
+.library-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.library-note-item {
+    padding: 10px 12px;
+    background: var(--color-bgSecondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.library-note-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.library-note-kind {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: white;
+}
+
+.library-note-kind.kudos {
+    background: #f59e0b;
+}
+
+.library-note-kind.info {
+    background: #3b82f6;
+}
+
+.library-note-kind.skill {
+    background: #8b5cf6;
+}
+
+.library-note-author {
+    font-size: 11px;
+    color: var(--color-textSecondary);
+}
+
+.library-note-content {
+    font-size: 13px;
+    color: var(--color-text);
+    line-height: 1.4;
+}
+
+.library-note-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.library-note-form-row {
+    display: flex;
+    gap: 8px;
+}
+
+.library-note-form select {
+    flex-shrink: 0;
+    width: 100px;
+}
+
+.library-note-form textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* ========== Library Revisions ========== */
+.library-revisions-section {
+    margin-top: 16px;
+}
+
+.library-revisions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.library-revision-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--color-bgSecondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.library-revision-info {
+    flex: 1;
+}
+
+.library-revision-editor {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.library-revision-date {
+    font-size: 11px;
+    color: var(--color-textSecondary);
+}
+
+.library-revert-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+    background: var(--color-bgTertiary);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.library-revert-btn:hover {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+/* ========== Library Error & Loading ========== */
+.library-error {
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.library-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: var(--color-textSecondary);
+    font-size: 13px;
+}
+
+.library-loading::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+/* ========== Library Editor Info ========== */
+.library-editor-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--color-bgSecondary);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--color-textSecondary);
+    margin-top: 12px;
+}
+
+.library-editor-label {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+/* ========== Editor Label Modal ========== */
+.editor-label-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.editor-label-modal-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.editor-label-modal {
+    background: var(--color-bg);
+    border-radius: 12px;
+    width: 360px;
+    max-width: 90vw;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    transition: transform 0.2s;
+}
+
+.editor-label-modal-overlay.visible .editor-label-modal {
+    transform: scale(1);
+}
+
+.editor-label-modal-header {
+    padding: 20px 24px 0;
+}
+
+.editor-label-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--color-text);
+}
+
+.editor-label-modal-body {
+    padding: 16px 24px;
+}
+
+.editor-label-hint {
+    font-size: 13px;
+    color: var(--color-textSecondary);
+    margin: 0 0 12px 0;
+}
+
+.editor-label-error {
+    color: #ef4444;
+    font-size: 12px;
+    min-height: 1em;
+    margin-top: 8px;
+}
+
+.editor-label-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--color-border);
 }
 
 .spot-link-item:hover {

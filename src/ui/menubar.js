@@ -6,7 +6,7 @@ let onDrawerChange = null;
 export function initMenubar(callback) {
     onDrawerChange = callback;
 
-    const navBtns = document.querySelectorAll('#menubar .nav-btn');
+    const navBtns = document.querySelectorAll('#menubar .nav-btn[data-drawer]');
     navBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const drawer = btn.dataset.drawer;
@@ -42,7 +42,7 @@ export function closeDrawer() {
 }
 
 function updateNavButtons() {
-    const navBtns = document.querySelectorAll('#menubar .nav-btn');
+    const navBtns = document.querySelectorAll('#menubar .nav-btn[data-drawer]');
     navBtns.forEach(btn => {
         const isActive = btn.dataset.drawer === currentDrawer;
         btn.classList.toggle('active', isActive);

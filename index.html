@@ -82,6 +82,21 @@
           </svg>
           <span>Search</span>
         </button>
+        <div class="nav-dropdown" id="map-menu">
+          <button class="nav-btn" id="map-menu-btn" title="Map">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z" />
+              <path d="M8 2v16" />
+              <path d="M16 6v16" />
+            </svg>
+            <span id="map-menu-label">Map</span>
+          </button>
+          <div class="nav-dropdown-content" id="map-dropdown">
+            <button class="nav-dropdown-item active" data-area="area:core">Office</button>
+            <button class="nav-dropdown-item" data-area="area:garden">Garden</button>
+            <button class="nav-dropdown-item" data-area="area:library">Library</button>
+          </div>
+        </div>
         <button class="nav-btn" data-drawer="settings" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
@@ -202,23 +217,6 @@
             <button class="theme-option" data-theme="theme:mono">
               <div class="theme-preview" style="background: linear-gradient(135deg, #fafafa, #d4d4d4);"></div>
               <div class="theme-name">Mono</div>
-            </button>
-          </div>
-        </div>
-        <div class="settings-section">
-          <div class="settings-label">Area</div>
-          <div class="theme-options" id="area-options">
-            <button class="theme-option active" data-area="area:core">
-              <div class="theme-preview" style="background: #e2e8f0;"></div>
-              <div class="theme-name">Office</div>
-            </button>
-            <button class="theme-option" data-area="area:garden">
-              <div class="theme-preview" style="background: #c7f9cc;"></div>
-              <div class="theme-name">Garden</div>
-            </button>
-            <button class="theme-option" data-area="area:library">
-              <div class="theme-preview" style="background: #f1e5d1;"></div>
-              <div class="theme-name">Library</div>
             </button>
           </div>
         </div>

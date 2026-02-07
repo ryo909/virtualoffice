@@ -338,23 +338,59 @@ export async function initApp(appConfig, session) {
         }
     });
 
-    function setActiveAreaButton(areaId) {
-        const options = document.querySelectorAll('#area-options .theme-option');
-        options.forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.area === areaId);
+    // Map dropdown menu
+    const mapMenu = document.getElementById('map-menu');
+    const mapMenuBtn = document.getElementById('map-menu-btn');
+    const mapMenuLabel = document.getElementById('map-menu-label');
+    const mapDropdown = document.getElementById('map-dropdown');
+
+    const AREA_LABELS = {
+        'area:core': 'Office',
+        'area:garden': 'Garden',
+        'area:library': 'Library'
+    };
+
+    function setActiveMapItem(areaId) {
+        const items = mapDropdown?.querySelectorAll('.nav-dropdown-item');
+        items?.forEach(item => {
+            item.classList.toggle('active', item.dataset.area === areaId);
+        });
+        // Note: Label stays fixed as "Map", dropdown items show active state
+    }
+
+    function closeMapMenu() {
+        mapMenu?.classList.remove('open');
+    }
+
+    if (mapMenuBtn) {
+        mapMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mapMenu?.classList.toggle('open');
         });
     }
 
-    const areaOptions = document.querySelectorAll('#area-options .theme-option');
-    areaOptions.forEach(opt => {
-        opt.addEventListener('click', () => {
-            const areaId = opt.dataset.area;
-            if (!areaId) return;
-            setActiveAreaButton(areaId);
-            void switchArea(areaId);
+    if (mapDropdown) {
+        mapDropdown.querySelectorAll('.nav-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const areaId = item.dataset.area;
+                if (!areaId || areaId === state.world.areaId) {
+                    closeMapMenu();
+                    return;
+                }
+                setActiveMapItem(areaId);
+                closeMapMenu();
+                void switchArea(areaId);
+            });
         });
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', () => {
+        closeMapMenu();
     });
-    setActiveAreaButton(state.world.areaId);
+
+    setActiveMapItem(state.world.areaId);
 
     initContextPanel({
         openZoom: (url) => {
@@ -819,7 +855,8 @@ export async function initApp(appConfig, session) {
             // 7) update BGM state
             applyAreaBgm(areaId);
 
-            setActiveAreaButton(areaId);
+            // Update Map menu active state
+            setActiveMapItem(areaId);
 
             showToast(`Switched: ${areaId}`, 'success');
             console.log('[Area] switched', { areaId, spawnName, sp, bg });
