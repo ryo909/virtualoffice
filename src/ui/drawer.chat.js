@@ -2,6 +2,7 @@
 
 import { formatTime } from '../utils/time.js';
 import { validateChatMessage } from '../utils/validate.js';
+import { generateUuid } from '../utils/ids.js';
 import {
     createDmThreadKey,
     fetchDmMessagesByThread,
@@ -190,7 +191,7 @@ async function sendMessage() {
                 message: validation.value,
                 senderActorId,
                 senderDisplayName: getMyNameCb?.() || '不明',
-                clientMsgId: crypto.randomUUID()
+                clientMsgId: generateUuid()
             });
             appendGlobalRow(saved);
         } catch (err) {
@@ -656,7 +657,7 @@ function toGlobalMessage(row) {
     if (!text) return null;
 
     return {
-        id: row.id || row.message_id || crypto.randomUUID(),
+        id: row.id || row.message_id || generateUuid(),
         senderActorId: row.sender_actor_id || row.senderActorId || null,
         name: row.sender_display_name || row.name || '不明',
         text,
@@ -675,7 +676,7 @@ function toDmMessage(row) {
     if (!threadKey || !senderId || !recipientId || !text) return null;
 
     return {
-        id: row.id || row.message_id || crypto.randomUUID(),
+        id: row.id || row.message_id || generateUuid(),
         threadKey,
         senderId,
         recipientId,

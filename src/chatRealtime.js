@@ -2,6 +2,7 @@
 // Supabase Realtime Broadcast based ephemeral chat (no DB)
 
 import { getSupabase } from './services/supabaseClient.js';
+import { generateUuid } from './utils/ids.js';
 
 const CHANNEL = 'global-chat';
 const EVENT = 'chat_message';
@@ -54,7 +55,7 @@ async function sendChatMessage({ supabase, getMyName, text }) {
 
     const name = (getMyName?.() || '不明').trim() || '不明';
     const msg = {
-        id: crypto.randomUUID(),
+        id: generateUuid(),
         name,
         text: String(text || '').slice(0, 500), // 念のため上限
         ts: Date.now()

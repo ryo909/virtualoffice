@@ -1,0 +1,304 @@
+#companion-dot {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#companion-dot.is-left {
+    left: 20px;
+    right: auto;
+}
+
+#companion-dot .companion-dot-button {
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.18);
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+#companion-dot .companion-dot-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#companion-dot .companion-dot-fallback {
+    font-size: 28px;
+    line-height: 1;
+    display: none;
+}
+
+#companion-dot .companion-dot-callout {
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+    display: none;
+}
+
+#companion-dot .companion-dot-badge {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#companion-dot.has-unread .companion-dot-callout,
+#companion-dot.has-unread .companion-dot-badge {
+    display: inline-flex;
+}
+
+#companion-dot .companion-dot-mini {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+#companion-dot .companion-dot-mini.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#companion-panel {
+    position: fixed;
+    right: 20px;
+    bottom: 92px;
+    width: min(340px, calc(100vw - 24px));
+    max-height: min(68vh, 520px);
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.28);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#companion-panel.is-hidden {
+    display: none;
+}
+
+#companion-panel .companion-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.09);
+    background: #f8fafc;
+}
+
+#companion-panel .companion-head-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+#companion-panel .companion-head-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+#companion-panel .companion-head-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+}
+
+#companion-panel .companion-head-sub {
+    font-size: 11px;
+    color: #475569;
+}
+
+#companion-panel .companion-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    color: #334155;
+}
+
+#companion-panel .companion-close:hover {
+    background: rgba(15, 23, 42, 0.06);
+}
+
+#companion-panel .companion-log {
+    padding: 10px;
+    overflow: auto;
+    flex: 1;
+    background: #ffffff;
+}
+
+#companion-panel .companion-msg {
+    max-width: 90%;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#companion-panel .companion-msg.user {
+    margin-left: auto;
+    background: #0ea5e9;
+    color: #ffffff;
+}
+
+#companion-panel .companion-msg.ai {
+    margin-right: auto;
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+#companion-panel .companion-msg.typing {
+    margin-right: auto;
+    background: #f8fafc;
+    color: #334155;
+}
+
+#companion-panel .companion-typing-dots {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+#companion-panel .companion-typing-dots span {
+    animation: companion-dot-blink 1s infinite;
+}
+
+#companion-panel .companion-typing-dots span:nth-child(2) {
+    animation-delay: 0.12s;
+}
+
+#companion-panel .companion-typing-dots span:nth-child(3) {
+    animation-delay: 0.24s;
+}
+
+@keyframes companion-dot-blink {
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+#companion-panel .companion-form {
+    border-top: 1px solid rgba(15, 23, 42, 0.09);
+    padding: 10px;
+    display: flex;
+    gap: 8px;
+    background: #f8fafc;
+}
+
+#companion-panel .companion-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid rgba(15, 23, 42, 0.16);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+#companion-panel .companion-send {
+    border-radius: 8px;
+    background: #0ea5e9;
+    color: #ffffff;
+    font-weight: 700;
+    padding: 0 12px;
+}
+
+#companion-panel .companion-send:disabled {
+    opacity: 0.6;
+}
+
+#companion-menu-btn {
+    position: relative;
+}
+
+#companion-menu-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#companion-menu-badge.visible {
+    display: inline-flex;
+}
+
+@media (max-width: 767px) {
+    #companion-dot {
+        right: 12px;
+        left: auto;
+        bottom: 12px;
+    }
+
+    #companion-dot.is-left {
+        left: 12px;
+        right: auto;
+        bottom: 12px;
+    }
+
+    #companion-panel {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        bottom: 80px;
+        max-height: 62vh;
+    }
+}

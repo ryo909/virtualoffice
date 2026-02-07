@@ -67,6 +67,16 @@
           <span class="chat-unread-dot" id="chat-unread-dot" aria-hidden="true"></span>
           <span>チャット</span>
         </button>
+        <button class="nav-btn" id="companion-menu-btn" title="AI">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="9" cy="10" r="1" fill="currentColor" />
+            <circle cx="15" cy="10" r="1" fill="currentColor" />
+            <path d="M8.5 14.5c1 .8 2.2 1.2 3.5 1.2s2.5-.4 3.5-1.2" />
+          </svg>
+          <span id="companion-menu-badge" aria-hidden="true"></span>
+          <span>AI</span>
+        </button>
         <button class="nav-btn" data-drawer="people" title="メンバー">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -126,10 +136,6 @@
         <div class="panel-actions" id="context-actions"></div>
       </div>
 
-      <!-- Minimap (optional) -->
-      <div id="minimap">
-        <canvas id="minimap-canvas"></canvas>
-      </div>
     </main>
 
     <!-- Drawer Overlay -->
@@ -308,6 +314,8 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
   </div>
+  <div id="companion-dot"></div>
+  <div id="companion-panel" class="is-hidden"></div>
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

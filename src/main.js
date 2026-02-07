@@ -1,5 +1,8 @@
 // main.js - Main application state and logic
 
+import './companion/companion.ui.css';
+import { mountCompanion } from './companion/companion.js';
+
 import { loadMaps, getSpawnPoint, getSpotById, setActiveArea, getSpots, getWorldModel, getActiveArea, getDeskById } from './world/mapLoader.js';
 import {
     initRenderer, render, worldToScreen, screenToWorld,
@@ -16,7 +19,6 @@ import { getSpotAt, getNearbyDesk, getClickableAt, getLocationLabel, getSortedSp
 import { warpNearUser } from './world/warp.js';
 import { initDebugHud, updateDebugHud } from './ui/debugHud.js';
 import { updateAnimation } from './avatar/pixelSpriteRenderer.js';
-import { renderMinimap } from './ui/minimap.js';
 
 import { getConfig, getSupabase, setActorIdHeader } from './services/supabaseClient.js';
 import { upsertNameplate, isDisplayNameTaken, getNameplateBySessionId } from './services/db.js';
@@ -50,8 +52,7 @@ import { initCallStateMachine } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent, handlePeerConnectionStateChange } from './call/signaling.js';
 import { initWebRTC, getLocalStream } from './call/webrtc.js';
 
-import { getSessionId, setSessionId, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId, getTimeMode, setTimeMode } from './utils/storage.js';
-import { generateSessionId } from './utils/ids.js';
+import { getSessionId, setSessionId, ensureSessFormat, getSavedPassword, setSavedPassword, clearSavedPassword, getDisplayName, setDisplayName, getThemeId, getTimeMode, setTimeMode } from './utils/storage.js';
 
 // ========== Application State ==========
 const state = {
@@ -234,11 +235,8 @@ export async function initApp(appConfig, session) {
     }
 
     // Get or create session ID
-    let sessionId = getSessionId();
-    if (!sessionId) {
-        sessionId = generateSessionId();
-        setSessionId(sessionId);
-    }
+    let sessionId = ensureSessFormat(getSessionId());
+    setSessionId(sessionId);
     state.me.actorId = sessionId;
     setActorIdHeader(sessionId);
 
@@ -398,6 +396,13 @@ export async function initApp(appConfig, session) {
             showToast('保存されたパスワードを削除しました', 'success');
         }
     });
+
+    try {
+        mountCompanion();
+    } catch (err) {
+        console.error('[MAIN] companion init failed (non-fatal):', err);
+        window.__COMPANION_DISABLED__ = true;
+    }
 
     // Map dropdown menu
     const mapMenu = document.getElementById('map-menu');
@@ -848,7 +853,7 @@ export async function initApp(appConfig, session) {
 
     // Helper: Check if click is on UI element
     function isUiClick(target) {
-        return target.closest('#menubar, #drawer, #modal-overlay, #context-panel, #minimap, button, input, textarea, a, .toast, .spot-modal-overlay');
+        return target.closest('#menubar, #drawer, #modal-overlay, #context-panel, button, input, textarea, a, .toast, .spot-modal-overlay');
     }
 
     function ensureInteractHint() {
@@ -1303,12 +1308,6 @@ export async function initApp(appConfig, session) {
             );
         }
 
-        // Render minimap
-        const minimapCanvas = document.getElementById('minimap-canvas');
-        if (minimapCanvas) {
-            renderMinimap(minimapCanvas, pos, otherPlayers);
-        }
-
         // Process queued action (auto-approach)
         if (state.queuedAction) {
             const spot = getSpotById(state.queuedAction.spotId);
@@ -1371,6 +1370,9 @@ function updateDrawerUI() {
     const title = document.getElementById('drawer-title');
 
     const isOpen = state.ui.drawer !== 'none';
+    const isChatOpen = state.ui.drawer === 'chat';
+
+    document.body.classList.toggle('chat-open', isChatOpen);
 
     overlay.classList.toggle('visible', isOpen);
     drawer.classList.toggle('open', isOpen);
@@ -1396,7 +1398,7 @@ function updateDrawerUI() {
         title.textContent = titles[state.ui.drawer] || 'ドロワー';
     }
 
-    setChatDrawerOpen(state.ui.drawer === 'chat');
+    setChatDrawerOpen(isChatOpen);
 
     // Close button
     document.getElementById('drawer-close')?.addEventListener('click', () => {

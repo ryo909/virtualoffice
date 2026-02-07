@@ -1,5 +1,7 @@
 // storage.js - localStorage utilities
 
+import { generateSessionId } from './ids.js';
+
 const KEYS = {
   SESSION_ID: 'office.session_id',
   SHARED_PASSWORD: 'office.shared_password',
@@ -8,12 +10,28 @@ const KEYS = {
   TIME_MODE: 'vo:timeMode'
 };
 
+const SESS_RE = /^sess_[0-9a-fA-F-]{10,}$/;
+
+function normalizeSessionId(sessionId) {
+  if (typeof sessionId === 'string' && SESS_RE.test(sessionId)) return sessionId;
+  return generateSessionId();
+}
+
 export function getSessionId() {
-  return localStorage.getItem(KEYS.SESSION_ID);
+  const raw = localStorage.getItem(KEYS.SESSION_ID);
+  return ensureSessFormat(raw);
 }
 
 export function setSessionId(id) {
-  localStorage.setItem(KEYS.SESSION_ID, id);
+  localStorage.setItem(KEYS.SESSION_ID, normalizeSessionId(id));
+}
+
+export function ensureSessFormat(sessionId) {
+  const sid = normalizeSessionId(sessionId);
+  if (sid !== sessionId) {
+    setSessionId(sid);
+  }
+  return sid;
 }
 
 export function getSavedPassword() {

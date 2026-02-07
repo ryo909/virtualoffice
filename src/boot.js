@@ -4,6 +4,7 @@ import { loadConfig, initSupabase, getSession, signIn, getConfig } from './servi
 import { initPasswordModal, showPasswordModal, hidePasswordModal, setSavedPasswordValue } from './ui/modal.password.js';
 import { initNameplateModal, showNameplateModal, hideNameplateModal } from './ui/modal.nameplate.js';
 import { getSavedPassword, setSavedPassword } from './utils/storage.js';
+import { unmountCompanion } from './companion/companion.js';
 import { initApp, setupNameplate, saveNameplate, startPresence } from './main.js';
 
 // Global Boot Looger & Error Handler
@@ -15,6 +16,7 @@ window.bootLog = function (msg) {
 
 window.showFatal = function (msg) {
     console.error('[FATAL]', msg);
+    try { unmountCompanion(); } catch { }
     const el = document.getElementById('fatalError');
     if (el) {
         el.style.display = 'block';
@@ -34,11 +36,33 @@ window.showFatal = function (msg) {
     }
 };
 
+function isCompanionIssue(value) {
+    const text = String(value || '').toLowerCase();
+    if (!text) return false;
+    return text.includes('/companion/') ||
+        text.includes('companion/voicechat') ||
+        text.includes('dialogue.js') ||
+        text.includes('tts.js');
+}
+
 window.addEventListener('error', (e) => {
+    if (isCompanionIssue(e?.message) || isCompanionIssue(e?.filename)) {
+        console.error('[BOOT] companion runtime error (non-fatal):', {
+            message: e?.message,
+            filename: e?.filename,
+            lineno: e?.lineno,
+            colno: e?.colno
+        });
+        return;
+    }
     window.showFatal(`JS Error: ${e.message}\n${e.filename}:${e.lineno}:${e.colno}`);
 });
 
 window.addEventListener('unhandledrejection', (e) => {
+    if (isCompanionIssue(e?.reason?.message) || isCompanionIssue(e?.reason)) {
+        console.error('[BOOT] companion promise rejection (non-fatal):', e?.reason);
+        return;
+    }
     const reason = e.reason?.message || String(e.reason);
     window.showFatal(`Unhandled Promise Rejection: ${reason}`);
 });
