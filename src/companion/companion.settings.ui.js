@@ -13,24 +13,18 @@ const DEFAULT_SETTINGS = {
 };
 
 function getBaseUrl() {
-    const envBase = import.meta.env?.BASE_URL;
-    if (typeof envBase === 'string' && envBase.length > 0) {
-        return envBase.replace(/\/?$/, '/');
+    if (typeof document !== 'undefined' && document.baseURI) {
+        return document.baseURI;
     }
 
-    if (typeof window !== 'undefined') {
-        const path = window.location.pathname || '/';
-        const segments = path.split('/').filter(Boolean);
-        if (segments.length > 0) {
-            return `/${segments[0]}/`;
-        }
-    }
-
-    return '/';
+    const envBase = typeof import.meta.env?.BASE_URL === 'string'
+        ? import.meta.env.BASE_URL
+        : '/';
+    return new URL(envBase, 'http://localhost/').toString();
 }
 
 function getDefaultAvatarSrc() {
-    return `${getBaseUrl()}src/companion/assets/mascot.png`;
+    return new URL('mascot.png', getBaseUrl()).toString();
 }
 
 function toNumber(value, fallback, min, max) {

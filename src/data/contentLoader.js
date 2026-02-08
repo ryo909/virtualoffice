@@ -6,6 +6,19 @@ const NEWS_OVERRIDE_KEY = 'virtualoffice_news_override';
 let galleryData = null;
 let newsData = null;
 
+function resolvePublicDataUrl(path) {
+    if (typeof document !== 'undefined' && document.baseURI) {
+        return new URL(path, document.baseURI).toString();
+    }
+
+    const base = typeof import.meta.env?.BASE_URL === 'string'
+        ? import.meta.env.BASE_URL
+        : '/';
+    const normalizedBase = base.replace(/\/?$/, '/');
+    const normalizedPath = String(path || '').replace(/^\/+/, '');
+    return `${normalizedBase}${normalizedPath}`;
+}
+
 /**
  * Load gallery data (fetch + localStorage override)
  */
@@ -25,7 +38,7 @@ export async function loadGallery() {
 
     // Fetch default
     try {
-        const response = await fetch('./data/gallery.json');
+        const response = await fetch(resolvePublicDataUrl('data/gallery.json'));
         galleryData = await response.json();
         console.log('[ContentLoader] Loaded gallery from file:', galleryData.items.length, 'items');
         return galleryData;
@@ -55,7 +68,7 @@ export async function loadNews() {
 
     // Fetch default
     try {
-        const response = await fetch('./data/news.json');
+        const response = await fetch(resolvePublicDataUrl('data/news.json'));
         newsData = await response.json();
         console.log('[ContentLoader] Loaded news from file:', newsData.items.length, 'items');
         return newsData;

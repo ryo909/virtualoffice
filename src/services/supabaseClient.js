@@ -3,10 +3,30 @@
 let supabaseClient = null;
 let config = null;
 
+function resolvePublicUrl(path) {
+    if (typeof document !== 'undefined' && document.baseURI) {
+        return new URL(path, document.baseURI).toString();
+    }
+
+    const base = typeof import.meta.env?.BASE_URL === 'string'
+        ? import.meta.env.BASE_URL
+        : '/';
+    const normalizedBase = base.replace(/\/?$/, '/');
+    const normalizedPath = String(path || '').replace(/^\/+/, '');
+    return `${normalizedBase}${normalizedPath}`;
+}
+
 export async function loadConfig() {
     if (config) return config;
 
-    const res = await fetch('./data/config/app.config.json');
+    const primaryUrl = resolvePublicUrl('data/config/app.config.json');
+    let res = await fetch(primaryUrl);
+
+    if (!res.ok) {
+        const fallbackUrl = resolvePublicUrl('data/config/app_config.json');
+        res = await fetch(fallbackUrl);
+    }
+
     if (!res.ok) throw new Error('Failed to load config');
     config = await res.json();
     return config;

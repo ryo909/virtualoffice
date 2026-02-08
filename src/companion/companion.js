@@ -6,6 +6,7 @@ import {
     loadUiState,
     saveUiState
 } from './companion.store.js';
+import './companion.ui.css';
 
 const CHAT_LS_KEY = 'companion:chatlog:v1';
 const MAX_CHAT_LOG = 200;
