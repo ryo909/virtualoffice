@@ -1,0 +1,32 @@
+{
+    "version": 1,
+    "items": [
+        {
+            "id": "tool-praise",
+            "title": "Praise",
+            "url": "https://ryo909.github.io/praise/",
+            "desc": "ほめ言葉ジェネレーター",
+            "tags": [
+                "tool"
+            ]
+        },
+        {
+            "id": "tool-homebuzz",
+            "title": "HomeBuzz",
+            "url": "https://ryo909.github.io/homebuzz/",
+            "desc": "",
+            "tags": [
+                "tool"
+            ]
+        },
+        {
+            "id": "tool-apologize",
+            "title": "Apologize",
+            "url": "https://ryo909.github.io/apologize/",
+            "desc": "謝罪会見ジェネレーター",
+            "tags": [
+                "tool"
+            ]
+        }
+    ]
+}
