@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Companion Harness</title>
+  <link rel="stylesheet" href="/src/companion/companion.ui.css" />
+  <style>
+    body { margin:0; min-height:100vh; font-family:sans-serif; background:linear-gradient(180deg,#f3f4f6,#e5e7eb); }
+    .pad { padding:24px; color:#111827; }
+  </style>
+</head>
+<body>
+  <div class="pad">Companion harness for screenshot validation.</div>
+  <script type="module">
+    import { mountCompanion } from '/src/companion/companion.js';
+    mountCompanion();
+    const p = new URLSearchParams(location.search);
+    if (p.get('open') === '1') {
+      setTimeout(() => window.Companion?.open?.(), 50);
+    } else {
+      setTimeout(() => window.Companion?.close?.(), 50);
+    }
+  </script>
+</body>
+</html>

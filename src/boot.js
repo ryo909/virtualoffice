@@ -7,6 +7,60 @@ import { getSavedPassword, setSavedPassword } from './utils/storage.js';
 import { unmountCompanion } from './companion/companion.js';
 import { initApp, setupNameplate, saveNameplate, startPresence } from './main.js';
 
+function maybeMountCompanionRootDebug() {
+    const enabled = new URLSearchParams(window.location.search).get('companion_root_debug') === '1';
+    console.log('[BOOT] companion_root_debug=', enabled, 'search=', window.location.search);
+    if (!enabled) return;
+
+    let root = document.getElementById('companion-root');
+    if (!root) {
+        root = document.createElement('div');
+        root.id = 'companion-root';
+        document.body.appendChild(root);
+    }
+
+    root.style.position = 'fixed';
+    root.style.right = '16px';
+    root.style.bottom = '16px';
+    root.style.zIndex = '2147483647';
+    root.style.width = '420px';
+    root.style.maxWidth = 'calc(100vw - 32px)';
+    root.style.height = '640px';
+    root.style.maxHeight = 'calc(100vh - 32px)';
+    root.style.display = 'block';
+    root.style.pointerEvents = 'auto';
+
+    root.innerHTML = `
+        <div id="companion-shell" style="
+            width:100%; height:100%;
+            background:#fff;
+            border:1px solid rgba(0,0,0,.15);
+            border-radius:12px;
+            box-shadow:0 10px 30px rgba(0,0,0,.15);
+            overflow:hidden;
+            position:relative;
+        ">
+            <div style="
+                height:44px; display:flex; align-items:center; justify-content:space-between;
+                padding:0 10px; border-bottom:1px solid rgba(0,0,0,.08);
+                background:rgba(0,0,0,.03);
+                font-size:14px;
+            ">
+                <div>AI Companion</div>
+                <button id="companion-root-close" style="
+                    width:32px;height:32px;border-radius:8px;border:1px solid rgba(0,0,0,.15);
+                    background:#fff;cursor:pointer;
+                ">×</button>
+            </div>
+            <div style="padding:10px;font-size:14px;">
+                <div style="margin-bottom:8px;">✅ Panel is mounted via #companion-root</div>
+                <div id="companion-debug">open=true bodyFlag=1</div>
+            </div>
+        </div>
+    `;
+    console.log('[BOOT] companion root debug mounted', !!document.getElementById('companion-root'));
+}
+
 // Global Boot Looger & Error Handler
 window.bootLog = function (msg) {
     console.log('[BOOT]', msg);
@@ -69,6 +123,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 async function boot() {
     window.bootLog('Virtual Office - Booting...');
+    maybeMountCompanionRootDebug();
 
     try {
         // Step 1: Load config

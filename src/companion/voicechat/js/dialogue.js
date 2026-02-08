@@ -32,4 +32,23 @@ export function reply(text, state = {}) {
     return getReply(text, state);
 }
 
-export default { getReply, reply, defaultCharacter };
+export class DialogueSystem {
+    constructor(initialState = {}) {
+        this.state = (initialState && typeof initialState === 'object') ? { ...initialState } : {};
+    }
+
+    setState(nextState = {}) {
+        if (!nextState || typeof nextState !== 'object') return this.state;
+        this.state = { ...this.state, ...nextState };
+        return this.state;
+    }
+
+    respond(text, statePatch = {}) {
+        if (statePatch && typeof statePatch === 'object') {
+            this.state = { ...this.state, ...statePatch };
+        }
+        return getReply(text, this.state);
+    }
+}
+
+export default { getReply, reply, defaultCharacter, DialogueSystem };
