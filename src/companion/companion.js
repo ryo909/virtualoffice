@@ -14,7 +14,7 @@ const RECENT_BOT_REPLIES_LIMIT = 10;
 const MIN_CONTEXT_TURNS = 6;
 const GREETED_FLAG_KEY = 'companionHasGreeted';
 const INITIAL_GREETING = 'やあ。来てくれたんだね';
-const DEFAULT_MASCOT_URL = '/mascot.png';
+const DEFAULT_MASCOT_URL = `${String(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')}mascot.png`;
 const MIN_TYPING_MS = 600;
 const IDLE_MS = 90_000;
 const IDLE_CHECK_MS = 10_000;
@@ -495,14 +495,18 @@ function resetSettings() {
 
 function resolveMascotSrc(settings) {
     const v = settings?.mascotDataUrl || '';
-    if (typeof v === 'string' && v.startsWith('data:image/')) return v;
-    return DEFAULT_MASCOT_URL;
+    const url = (typeof v === 'string' && v.startsWith('data:image/')) ? v : DEFAULT_MASCOT_URL;
+    const from = url === DEFAULT_MASCOT_URL ? 'default' : 'localStorage';
+    console.log('[MASCOT]', { from, url });
+    return url;
 }
 
 function attachImgFallback(img) {
     if (!img || img.dataset.fallbackBound === '1') return;
     img.dataset.fallbackBound = '1';
     img.addEventListener('error', () => {
+        if (img.dataset.mascotFallbackApplied === '1') return;
+        img.dataset.mascotFallbackApplied = '1';
         img.src = DEFAULT_MASCOT_URL;
     });
 }
@@ -1031,13 +1035,7 @@ function renderShell() {
     refs.send = null;
     console.log('[companion] dot mounted');
 
-    refs.dotHost.querySelectorAll('img').forEach((img) => {
-        on(img, 'error', () => {
-            const fallback = refs.dotHost?.querySelector('.companion-dot-fallback');
-            if (fallback) fallback.style.display = 'inline-block';
-            img.style.display = 'none';
-        }, { once: true });
-    });
+    refs.dotHost.querySelectorAll('img').forEach((img) => attachImgFallback(img));
 
     syncIdentityUI();
     updateFabReaction();
