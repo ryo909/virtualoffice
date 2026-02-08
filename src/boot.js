@@ -7,6 +7,9 @@ import { getSavedPassword, setSavedPassword } from './utils/storage.js';
 import { unmountCompanion } from './companion/companion.js';
 import { initApp, setupNameplate, saveNameplate, startPresence } from './main.js';
 
+const BUILD_ID = typeof __APP_BUILD_ID__ === 'string' ? __APP_BUILD_ID__ : `local-${Date.now()}`;
+console.log('[BUILD]', BUILD_ID);
+
 function maybeMountCompanionRootDebug() {
     const enabled = new URLSearchParams(window.location.search).get('companion_root_debug') === '1';
     console.log('[BOOT] companion_root_debug=', enabled, 'search=', window.location.search);

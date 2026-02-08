@@ -1,46 +1,22 @@
-// contentLoader.js - Load gallery and news data with localStorage override
+// contentLoader.js - Load gallery and news data
+// Delegates to contentRepo.js for unified data access
 
-const GALLERY_OVERRIDE_KEY = 'virtualoffice_gallery_override';
-const NEWS_OVERRIDE_KEY = 'virtualoffice_news_override';
+import { getGallery as getGalleryFromRepo, getNews as getNewsFromRepo } from '../services/contentRepo.js';
 
 let galleryData = null;
 let newsData = null;
 
-function resolvePublicDataUrl(path) {
-    if (typeof document !== 'undefined' && document.baseURI) {
-        return new URL(path, document.baseURI).toString();
-    }
-
-    const base = typeof import.meta.env?.BASE_URL === 'string'
-        ? import.meta.env.BASE_URL
-        : '/';
-    const normalizedBase = base.replace(/\/?$/, '/');
-    const normalizedPath = String(path || '').replace(/^\/+/, '');
-    return `${normalizedBase}${normalizedPath}`;
-}
-
 /**
- * Load gallery data (fetch + localStorage override)
+ * Load gallery data (from contentRepo)
  */
 export async function loadGallery() {
-    // Check localStorage override first
-    const override = localStorage.getItem(GALLERY_OVERRIDE_KEY);
-    if (override) {
-        try {
-            const parsed = JSON.parse(override);
-            galleryData = parsed;
-            console.log('[ContentLoader] Loaded gallery from localStorage override');
-            return galleryData;
-        } catch (e) {
-            console.warn('[ContentLoader] Invalid gallery override, using default');
-        }
-    }
-
-    // Fetch default
     try {
-        const response = await fetch(resolvePublicDataUrl('data/gallery.json'));
-        galleryData = await response.json();
-        console.log('[ContentLoader] Loaded gallery from file:', galleryData.items.length, 'items');
+        const result = await getGalleryFromRepo();
+        galleryData = {
+            version: 1,
+            items: result.items
+        };
+        console.log('[ContentLoader] Gallery loaded:', { source: result.source, count: result.items.length });
         return galleryData;
     } catch (e) {
         console.error('[ContentLoader] Failed to load gallery:', e);
@@ -50,27 +26,16 @@ export async function loadGallery() {
 }
 
 /**
- * Load news data (fetch + localStorage override)
+ * Load news data (from contentRepo)
  */
 export async function loadNews() {
-    // Check localStorage override first
-    const override = localStorage.getItem(NEWS_OVERRIDE_KEY);
-    if (override) {
-        try {
-            const parsed = JSON.parse(override);
-            newsData = parsed;
-            console.log('[ContentLoader] Loaded news from localStorage override');
-            return newsData;
-        } catch (e) {
-            console.warn('[ContentLoader] Invalid news override, using default');
-        }
-    }
-
-    // Fetch default
     try {
-        const response = await fetch(resolvePublicDataUrl('data/news.json'));
-        newsData = await response.json();
-        console.log('[ContentLoader] Loaded news from file:', newsData.items.length, 'items');
+        const result = await getNewsFromRepo();
+        newsData = {
+            version: 1,
+            items: result.items
+        };
+        console.log('[ContentLoader] News loaded:', { source: result.source, count: result.items.length });
         return newsData;
     } catch (e) {
         console.error('[ContentLoader] Failed to load news:', e);
@@ -94,42 +59,6 @@ export function getNews() {
 }
 
 /**
- * Save gallery override to localStorage
- */
-export function saveGalleryOverride(data) {
-    localStorage.setItem(GALLERY_OVERRIDE_KEY, JSON.stringify(data));
-    galleryData = data;
-    console.log('[ContentLoader] Saved gallery override:', data.items.length, 'items');
-}
-
-/**
- * Save news override to localStorage
- */
-export function saveNewsOverride(data) {
-    localStorage.setItem(NEWS_OVERRIDE_KEY, JSON.stringify(data));
-    newsData = data;
-    console.log('[ContentLoader] Saved news override:', data.items.length, 'items');
-}
-
-/**
- * Clear overrides (revert to default)
- */
-export function clearOverrides() {
-    localStorage.removeItem(GALLERY_OVERRIDE_KEY);
-    localStorage.removeItem(NEWS_OVERRIDE_KEY);
-    galleryData = null;
-    newsData = null;
-    console.log('[ContentLoader] Cleared overrides');
-}
-
-/**
- * Check if overrides exist
- */
-export function hasOverrides() {
-    return !!(localStorage.getItem(GALLERY_OVERRIDE_KEY) || localStorage.getItem(NEWS_OVERRIDE_KEY));
-}
-
-/**
  * Export all data as JSON string
  */
 export function exportData() {
@@ -138,22 +67,4 @@ export function exportData() {
         news: newsData,
         exportedAt: new Date().toISOString()
     }, null, 2);
-}
-
-/**
- * Import data from JSON string
- */
-export function importData(jsonString) {
-    try {
-        const data = JSON.parse(jsonString);
-        if (data.gallery && data.gallery.items) {
-            saveGalleryOverride(data.gallery);
-        }
-        if (data.news && data.news.items) {
-            saveNewsOverride(data.news);
-        }
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
 }

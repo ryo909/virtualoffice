@@ -1,11 +1,7 @@
 // modal.admin.js - Admin login and panel modals
 
 import { checkAdminSession, loginAdmin, logoutAdmin } from '../admin/adminAuth.js';
-import {
-    getGallery, getNews,
-    saveGalleryOverride, saveNewsOverride,
-    exportData, importData, clearOverrides
-} from '../data/contentLoader.js';
+import { exportData, loadGallery, loadNews } from '../data/contentLoader.js';
 import { adminPurgeDmBefore, adminPurgeDmAll } from '../services/dmMessages.js';
 import {
     adminDeleteGlobalMessage,
@@ -13,12 +9,23 @@ import {
     adminPurgeGlobalBefore,
     fetchGlobalMessagesForAdmin
 } from '../services/globalMessages.js';
+import {
+    getGalleryAdmin,
+    saveGalleryAdmin,
+    getNewsAdmin,
+    saveNewsAdmin,
+    clearContentOverrides
+} from '../services/contentRepo.js';
 
 let adminOverlay = null;
 let isVisible = false;
 let currentTab = 'gallery';
 let onDebugHudToggle = null;
 let getDebugHudEnabled = null;
+
+// Local state for admin editing
+let galleryItems = [];
+let newsItems = [];
 
 const DEBUG_HUD_STORAGE_KEY = 'vo:debugHudEnabled';
 
@@ -245,17 +252,33 @@ function applyDebugHud(enabled) {
 }
 
 // ========== Gallery Editor ==========
-function renderGalleryEditor(container) {
-    const gallery = getGallery();
-    const items = gallery?.items || [];
+async function renderGalleryEditor(container) {
+    container.innerHTML = '<div class="admin-editor"><div class="chat-empty">読み込み中...</div></div>';
+    let loadError = '';
+
+    try {
+        const result = await getGalleryAdmin();
+        if (result.ok !== true) {
+            throw new Error(result.error || 'DBからギャラリーを取得できませんでした');
+        }
+        galleryItems = Array.isArray(result.items) ? result.items : [];
+    } catch (err) {
+        console.error('[Admin] Gallery load error:', err);
+        galleryItems = [];
+        loadError = err?.message || 'DBから取得できませんでした';
+    }
+
+    const items = galleryItems;
 
     container.innerHTML = `
         <div class="admin-editor">
+            ${loadError ? `<div class="admin-status error">❌ ${escapeHtml(loadError)}</div>` : ''}
             <div class="admin-list" id="gallery-list">
                 ${items.map((item, i) => `
-                    <div class="admin-item" data-index="${i}">
+                    <div class="admin-item" data-index="${i}" data-id="${item.id}">
                         <div class="item-header">
-                            <span class="item-title">${item.title || '(無題)'}</span>
+                            <span class="item-title">${escapeHtml(item.title || '(無題)')}</span>
+                            ${item.is_active === false ? '<span class="item-badge">非表示</span>' : ''}
                             <div class="item-actions">
                                 <button class="item-btn" data-action="up" ${i === 0 ? 'disabled' : ''}>↑</button>
                                 <button class="item-btn" data-action="down" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
@@ -267,210 +290,321 @@ function renderGalleryEditor(container) {
                     </div>
                 `).join('')}
             </div>
-            <button id="gallery-add-btn" class="admin-btn">+ アイテム追加</button>
+            <div class="admin-buttons">
+                <button id="gallery-add-btn" class="admin-btn">+ アイテム追加</button>
+                <button id="gallery-save-btn" class="admin-btn primary">💾 保存</button>
+            </div>
         </div>
     `;
 
     // Event handlers
     container.querySelectorAll('.item-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const item = e.target.closest('.admin-item');
-            const index = parseInt(item.dataset.index);
-            handleGalleryAction(e.target.dataset.action, index);
+        btn.addEventListener('click', async (e) => {
+            const itemEl = e.target.closest('.admin-item');
+            const index = parseInt(itemEl.dataset.index);
+            await handleGalleryAction(e.target.dataset.action, index);
         });
     });
 
-    document.getElementById('gallery-add-btn').addEventListener('click', () => {
-        showGalleryItemEditor(-1);
+    document.getElementById('gallery-add-btn')?.addEventListener('click', () => {
+        showGalleryItemEditor(null);
+    });
+
+    document.getElementById('gallery-save-btn')?.addEventListener('click', async () => {
+        await saveGalleryFromUI();
     });
 }
 
-function handleGalleryAction(action, index) {
-    const gallery = getGallery();
-    const items = [...gallery.items];
-
+async function handleGalleryAction(action, index) {
     if (action === 'up' && index > 0) {
-        [items[index], items[index - 1]] = [items[index - 1], items[index]];
-        saveGalleryOverride({ ...gallery, items });
+        // Swap in local array
+        [galleryItems[index], galleryItems[index - 1]] = [galleryItems[index - 1], galleryItems[index]];
         renderTabContent();
-    } else if (action === 'down' && index < items.length - 1) {
-        [items[index], items[index + 1]] = [items[index + 1], items[index]];
-        saveGalleryOverride({ ...gallery, items });
+    } else if (action === 'down' && index < galleryItems.length - 1) {
+        // Swap in local array
+        [galleryItems[index], galleryItems[index + 1]] = [galleryItems[index + 1], galleryItems[index]];
         renderTabContent();
     } else if (action === 'delete') {
-        if (confirm('このアイテムを削除しますか？')) {
-            items.splice(index, 1);
-            saveGalleryOverride({ ...gallery, items });
+        if (confirm('このアイテムを非表示にしますか？')) {
+            // Mark as inactive instead of removing
+            galleryItems[index].is_active = false;
             renderTabContent();
         }
     } else if (action === 'edit') {
-        showGalleryItemEditor(index);
+        showGalleryItemEditor(galleryItems[index], index);
     }
 }
 
-function showGalleryItemEditor(index) {
-    const gallery = getGallery();
-    const item = index >= 0 ? gallery.items[index] : { id: `tool-${Date.now()}`, title: '', url: '', desc: '', tags: [] };
+function showGalleryItemEditor(item, index) {
+    const isNew = !item;
+    const editItem = item || { id: crypto.randomUUID(), title: '', url: '', desc: '', tags: [], is_active: true };
 
     const container = document.getElementById('admin-tab-content');
     container.innerHTML = `
         <div class="admin-form">
-            <h3>${index >= 0 ? 'アイテム編集' : '新規アイテム'}</h3>
+            <h3>${isNew ? '新規アイテム' : 'アイテム編集'}</h3>
             <label>タイトル</label>
-            <input type="text" id="gallery-edit-title" value="${item.title || ''}">
+            <input type="text" id="gallery-edit-title" value="${escapeHtml(editItem.title || '')}">
             <label>URL</label>
-            <input type="url" id="gallery-edit-url" value="${item.url || ''}">
+            <input type="url" id="gallery-edit-url" value="${escapeHtml(editItem.url || '')}">
             <label>説明</label>
-            <input type="text" id="gallery-edit-desc" value="${item.desc || ''}">
+            <input type="text" id="gallery-edit-desc" value="${escapeHtml(editItem.desc || '')}">
             <label>タグ (カンマ区切り)</label>
-            <input type="text" id="gallery-edit-tags" value="${(item.tags || []).join(', ')}">
+            <input type="text" id="gallery-edit-tags" value="${(editItem.tags || []).join(', ')}">
+            <div class="form-group">
+                <label class="form-checkbox" for="gallery-edit-active">
+                    <input type="checkbox" id="gallery-edit-active" ${editItem.is_active !== false ? 'checked' : ''}>
+                    表示する
+                </label>
+            </div>
             <div class="admin-buttons">
-                <button id="gallery-edit-save" class="admin-btn primary">保存</button>
+                <button id="gallery-edit-save" class="admin-btn primary">適用</button>
                 <button id="gallery-edit-cancel" class="admin-btn">キャンセル</button>
             </div>
         </div>
     `;
 
     document.getElementById('gallery-edit-save').addEventListener('click', () => {
-        const newItem = {
-            id: item.id,
+        const data = {
+            id: editItem.id,
             title: document.getElementById('gallery-edit-title').value,
             url: document.getElementById('gallery-edit-url').value,
             desc: document.getElementById('gallery-edit-desc').value,
-            tags: document.getElementById('gallery-edit-tags').value.split(',').map(t => t.trim()).filter(Boolean)
+            tags: document.getElementById('gallery-edit-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+            is_active: document.getElementById('gallery-edit-active').checked
         };
 
-        const items = [...gallery.items];
-        if (index >= 0) {
-            items[index] = newItem;
+        if (isNew) {
+            // Add to end of array
+            galleryItems.push(data);
         } else {
-            items.push(newItem);
+            // Update existing item
+            galleryItems[index] = data;
         }
-        saveGalleryOverride({ ...gallery, items });
         renderTabContent();
     });
 
-    document.getElementById('gallery-edit-cancel').addEventListener('click', renderTabContent);
+    document.getElementById('gallery-edit-cancel').addEventListener('click', () => {
+        renderTabContent();
+    });
 }
 
-function saveGalleryFromUI() {
-    // Already saving on each action, just show confirmation
-    alert('ギャラリーを保存しました');
+async function saveGalleryFromUI() {
+    try {
+        const result = await saveGalleryAdmin(galleryItems);
+        if (result.ok) {
+            alert('保存しました');
+            await loadGallery();
+            renderTabContent();
+        } else {
+            alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('[Admin] Gallery save failed:', err);
+        alert('保存に失敗しました: ' + err.message);
+    }
 }
 
 // ========== News Editor ==========
-function renderNewsEditor(container) {
-    const news = getNews();
-    const items = news?.items || [];
+async function renderNewsEditor(container) {
+    container.innerHTML = '<div class="admin-editor"><div class="chat-empty">読み込み中...</div></div>';
+    let loadError = '';
+
+    try {
+        const result = await getNewsAdmin();
+        if (result.ok !== true) {
+            throw new Error(result.error || 'DBからニュースを取得できませんでした');
+        }
+        newsItems = Array.isArray(result.items) ? result.items : [];
+    } catch (err) {
+        console.error('[Admin] News load error:', err);
+        newsItems = [];
+        loadError = err?.message || 'DBから取得できませんでした';
+    }
+
+    const items = newsItems;
 
     container.innerHTML = `
         <div class="admin-editor">
+            ${loadError ? `<div class="admin-status error">❌ ${escapeHtml(loadError)}</div>` : ''}
             <div class="admin-list" id="news-list">
                 ${items.map((item, i) => `
-                    <div class="admin-item" data-index="${i}">
+                    <div class="admin-item" data-index="${i}" data-id="${item.id}">
                         <div class="item-header">
-                            <span class="item-title">${item.title || '(無題)'}</span>
+                            <span class="item-title">${escapeHtml(item.title || '(無題)')}</span>
+                            ${item.pinned ? '<span class="item-badge">📌</span>' : ''}
+                            ${item.status === 'draft' ? '<span class="item-badge">下書き</span>' : ''}
                             <span class="item-date">${item.date || ''}</span>
                             <div class="item-actions">
-                                <button class="item-btn" data-action="up" ${i === 0 ? 'disabled' : ''}>↑</button>
-                                <button class="item-btn" data-action="down" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
+                                <button class="item-btn" data-action="pin" title="ピン留め">${item.pinned ? '⭐' : '☆'}</button>
                                 <button class="item-btn" data-action="edit">✏️</button>
                                 <button class="item-btn danger" data-action="delete">🗑️</button>
                             </div>
                         </div>
-                        <div class="item-meta">${(item.body || '').substring(0, 50)}...</div>
+                        <div class="item-meta">${escapeHtml((item.body || '').substring(0, 50))}...</div>
                     </div>
                 `).join('')}
             </div>
-            <button id="news-add-btn" class="admin-btn">+ ニュース追加</button>
+            <div class="admin-buttons">
+                <button id="news-add-btn" class="admin-btn">+ ニュース追加</button>
+                <button id="news-save-btn" class="admin-btn primary">💾 保存</button>
+            </div>
         </div>
     `;
 
     container.querySelectorAll('.item-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const item = e.target.closest('.admin-item');
-            const index = parseInt(item.dataset.index);
+            const itemEl = e.target.closest('.admin-item');
+            const index = parseInt(itemEl.dataset.index);
             handleNewsAction(e.target.dataset.action, index);
         });
     });
 
-    document.getElementById('news-add-btn').addEventListener('click', () => {
-        showNewsItemEditor(-1);
+    document.getElementById('news-add-btn')?.addEventListener('click', () => {
+        showNewsItemEditor(null);
+    });
+
+    document.getElementById('news-save-btn')?.addEventListener('click', async () => {
+        await saveNewsFromUI();
     });
 }
 
-function handleNewsAction(action, index) {
-    const news = getNews();
-    const items = [...news.items];
+function formatDate(d) {
+    if (!d) return '';
+    if (typeof d === 'string') return d.split('T')[0];
+    const date = d instanceof Date ? d : new Date(d);
+    return date.toISOString().split('T')[0];
+}
 
-    if (action === 'up' && index > 0) {
-        [items[index], items[index - 1]] = [items[index - 1], items[index]];
-        saveNewsOverride({ ...news, items });
-        renderTabContent();
-    } else if (action === 'down' && index < items.length - 1) {
-        [items[index], items[index + 1]] = [items[index + 1], items[index]];
-        saveNewsOverride({ ...news, items });
+function handleNewsAction(action, index) {
+    if (action === 'pin') {
+        // Toggle pinned in local array
+        newsItems[index].pinned = !newsItems[index].pinned;
         renderTabContent();
     } else if (action === 'delete') {
         if (confirm('このニュースを削除しますか？')) {
-            items.splice(index, 1);
-            saveNewsOverride({ ...news, items });
+            // Remove from array (will delete on save)
+            newsItems.splice(index, 1);
             renderTabContent();
         }
     } else if (action === 'edit') {
-        showNewsItemEditor(index);
+        showNewsItemEditor(newsItems[index], index);
     }
 }
 
-function showNewsItemEditor(index) {
-    const news = getNews();
-    const item = index >= 0 ? news.items[index] : {
-        id: `news-${Date.now()}`,
+function showNewsItemEditor(item, index) {
+    const isNew = !item;
+    const editItem = item || {
+        id: crypto.randomUUID(),
         title: '',
         body: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        status: 'published',
+        pinned: false
     };
 
     const container = document.getElementById('admin-tab-content');
     container.innerHTML = `
         <div class="admin-form">
-            <h3>${index >= 0 ? 'ニュース編集' : '新規ニュース'}</h3>
+            <h3>${isNew ? '新規ニュース' : 'ニュース編集'}</h3>
             <label>タイトル</label>
-            <input type="text" id="news-edit-title" value="${item.title || ''}">
+            <input type="text" id="news-edit-title" value="${escapeHtml(editItem.title || '')}">
             <label>日付</label>
-            <input type="date" id="news-edit-date" value="${item.date || ''}">
+            <input type="date" id="news-edit-date" value="${editItem.date || ''}">
             <label>本文</label>
-            <textarea id="news-edit-body" rows="5">${item.body || ''}</textarea>
+            <textarea id="news-edit-body" rows="5">${escapeHtml(editItem.body || '')}</textarea>
+            <div class="form-group">
+                <label class="form-checkbox" for="news-edit-published">
+                    <input type="checkbox" id="news-edit-published" ${editItem.status === 'published' ? 'checked' : ''}>
+                    公開する
+                </label>
+            </div>
+            <div class="form-group">
+                <label class="form-checkbox" for="news-edit-pinned">
+                    <input type="checkbox" id="news-edit-pinned" ${editItem.pinned ? 'checked' : ''}>
+                    ピン留め
+                </label>
+            </div>
             <div class="admin-buttons">
-                <button id="news-edit-save" class="admin-btn primary">保存</button>
+                <button id="news-edit-save" class="admin-btn primary">適用</button>
                 <button id="news-edit-cancel" class="admin-btn">キャンセル</button>
             </div>
         </div>
     `;
 
     document.getElementById('news-edit-save').addEventListener('click', () => {
-        const newItem = {
-            id: item.id,
+        const data = {
+            id: editItem.id,
             title: document.getElementById('news-edit-title').value,
-            date: document.getElementById('news-edit-date').value,
-            body: document.getElementById('news-edit-body').value
+            body: document.getElementById('news-edit-body').value,
+            date: document.getElementById('news-edit-date').value || new Date().toISOString().split('T')[0],
+            status: document.getElementById('news-edit-published').checked ? 'published' : 'draft',
+            pinned: document.getElementById('news-edit-pinned').checked
         };
 
-        const items = [...news.items];
-        if (index >= 0) {
-            items[index] = newItem;
+        if (isNew) {
+            newsItems.push(data);
         } else {
-            items.push(newItem);
+            newsItems[index] = data;
         }
-        saveNewsOverride({ ...news, items });
         renderTabContent();
     });
 
-    document.getElementById('news-edit-cancel').addEventListener('click', renderTabContent);
+    document.getElementById('news-edit-cancel').addEventListener('click', () => {
+        renderTabContent();
+    });
 }
 
-function saveNewsFromUI() {
-    alert('お知らせを保存しました');
+async function saveNewsFromUI() {
+    try {
+        const result = await saveNewsAdmin(newsItems);
+        if (result.ok) {
+            alert('保存しました');
+            await loadNews();
+            renderTabContent();
+        } else {
+            alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('[Admin] News save failed:', err);
+        alert('保存に失敗しました: ' + err.message);
+    }
+}
+
+function normalizeGalleryImportItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map((item, index) => ({
+        id: item?.id || crypto.randomUUID(),
+        title: item?.title || '',
+        url: item?.url || '',
+        desc: item?.desc || item?.description || '',
+        tags: Array.isArray(item?.tags) ? item.tags : [],
+        is_active: item?.is_active !== false,
+        order: Number.isFinite(Number(item?.order)) ? Number(item.order) : index
+    }));
+}
+
+function normalizeNewsImportItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map((item, index) => ({
+        id: item?.id || crypto.randomUUID(),
+        title: item?.title || '',
+        body: item?.body || '',
+        date: item?.date || new Date().toISOString().split('T')[0],
+        status: item?.status === 'draft' ? 'draft' : 'published',
+        pinned: item?.pinned === true,
+        order: Number.isFinite(Number(item?.order)) ? Number(item.order) : index
+    }));
+}
+
+function parseImportItems(parsed) {
+    const gallery = Array.isArray(parsed?.gallery?.items)
+        ? parsed.gallery.items
+        : (Array.isArray(parsed?.gallery) ? parsed.gallery : []);
+    const news = Array.isArray(parsed?.news?.items)
+        ? parsed.news.items
+        : (Array.isArray(parsed?.news) ? parsed.news : []);
+    return { gallery, news };
 }
 
 // ========== Export/Import ==========
@@ -513,23 +647,57 @@ function renderExportPanel(container) {
         URL.revokeObjectURL(url);
     });
 
-    document.getElementById('import-btn').addEventListener('click', () => {
+    document.getElementById('import-btn').addEventListener('click', async () => {
         const text = document.getElementById('import-text').value;
-        const result = importData(text);
         const status = document.getElementById('import-status');
-        if (result.success) {
-            status.textContent = '✅ インポート成功';
+
+        let parsed = null;
+        try {
+            parsed = JSON.parse(text);
+        } catch (err) {
+            status.textContent = `❌ エラー: JSON形式が不正です (${err?.message || 'parse error'})`;
+            status.className = 'admin-status error';
+            return;
+        }
+
+        const { gallery, news } = parseImportItems(parsed);
+        if (gallery.length === 0 && news.length === 0) {
+            status.textContent = '❌ エラー: gallery/news の items が見つかりません';
+            status.className = 'admin-status error';
+            return;
+        }
+
+        const galleryItemsToSave = normalizeGalleryImportItems(gallery);
+        const newsItemsToSave = normalizeNewsImportItems(news);
+
+        try {
+            if (galleryItemsToSave.length > 0) {
+                const result = await saveGalleryAdmin(galleryItemsToSave);
+                if (!result.ok) throw new Error(`gallery保存失敗: ${result.error || 'unknown'}`);
+            }
+            if (newsItemsToSave.length > 0) {
+                const result = await saveNewsAdmin(newsItemsToSave);
+                if (!result.ok) throw new Error(`news保存失敗: ${result.error || 'unknown'}`);
+            }
+
+            await Promise.all([loadGallery(), loadNews()]);
+            status.textContent = `✅ DBへ保存しました (gallery=${galleryItemsToSave.length}, news=${newsItemsToSave.length})`;
             status.className = 'admin-status success';
-        } else {
-            status.textContent = `❌ エラー: ${result.error}`;
+        } catch (err) {
+            console.error('[Admin] import to DB failed', err);
+            status.textContent = `❌ エラー: ${err?.message || '保存に失敗しました'}`;
             status.className = 'admin-status error';
         }
     });
 
     document.getElementById('clear-overrides-btn').addEventListener('click', () => {
-        if (confirm('localStorageのオーバーライドをすべてリセットしますか？\nデフォルトのJSONに戻ります。')) {
-            clearOverrides();
-            alert('リセットしました。ページをリロードしてください。');
+        if (confirm('debug override のキーのみ削除します。DBデータは削除されません。実行しますか？')) {
+            const result = clearContentOverrides();
+            if (!result.ok) {
+                alert(`リセットに失敗しました: ${result.error || 'unknown error'}`);
+                return;
+            }
+            alert(`overrideキーを削除しました (${result.cleared}件)。DBデータは保持されています。`);
         }
     });
 }
