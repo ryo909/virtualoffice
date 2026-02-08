@@ -406,6 +406,38 @@ async function saveGalleryFromUI() {
 }
 
 // ========== News Editor ==========
+function compareNewsItems(a, b) {
+    const pinnedA = a?.pinned === true ? 1 : 0;
+    const pinnedB = b?.pinned === true ? 1 : 0;
+    if (pinnedA !== pinnedB) return pinnedB - pinnedA;
+
+    const orderA = Number.isFinite(Number(a?.order)) ? Number(a.order) : Number.MAX_SAFE_INTEGER;
+    const orderB = Number.isFinite(Number(b?.order)) ? Number(b.order) : Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const dateA = Date.parse(a?.published_at || a?.date || '');
+    const dateB = Date.parse(b?.published_at || b?.date || '');
+    if (Number.isFinite(dateA) && Number.isFinite(dateB) && dateA !== dateB) return dateB - dateA;
+    if (Number.isFinite(dateA) && !Number.isFinite(dateB)) return -1;
+    if (!Number.isFinite(dateA) && Number.isFinite(dateB)) return 1;
+    return 0;
+}
+
+function sortNewsItemsInPlace() {
+    newsItems.sort(compareNewsItems);
+}
+
+function normalizeNewsOrders() {
+    newsItems.forEach((item, index) => {
+        item.order = index;
+    });
+}
+
+function nextNewsOrder() {
+    if (!Array.isArray(newsItems) || newsItems.length === 0) return 0;
+    return Math.max(...newsItems.map((item) => Number(item?.order) || 0)) + 1;
+}
+
 async function renderNewsEditor(container) {
     container.innerHTML = '<div class="admin-editor"><div class="chat-empty">読み込み中...</div></div>';
     let loadError = '';
@@ -416,6 +448,8 @@ async function renderNewsEditor(container) {
             throw new Error(result.error || 'DBからニュースを取得できませんでした');
         }
         newsItems = Array.isArray(result.items) ? result.items : [];
+        sortNewsItemsInPlace();
+        normalizeNewsOrders();
     } catch (err) {
         console.error('[Admin] News load error:', err);
         newsItems = [];
@@ -435,7 +469,10 @@ async function renderNewsEditor(container) {
                             ${item.pinned ? '<span class="item-badge">📌</span>' : ''}
                             ${item.status === 'draft' ? '<span class="item-badge">下書き</span>' : ''}
                             <span class="item-date">${item.date || ''}</span>
+                            <span class="item-date">order: ${Number(item.order) || 0}</span>
                             <div class="item-actions">
+                                <button class="item-btn" data-action="up" ${i === 0 ? 'disabled' : ''}>↑</button>
+                                <button class="item-btn" data-action="down" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
                                 <button class="item-btn" data-action="pin" title="ピン留め">${item.pinned ? '⭐' : '☆'}</button>
                                 <button class="item-btn" data-action="edit">✏️</button>
                                 <button class="item-btn danger" data-action="delete">🗑️</button>
@@ -455,7 +492,7 @@ async function renderNewsEditor(container) {
     container.querySelectorAll('.item-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const itemEl = e.target.closest('.admin-item');
-            const index = parseInt(itemEl.dataset.index);
+            const index = parseInt(itemEl.dataset.index, 10);
             handleNewsAction(e.target.dataset.action, index);
         });
     });
@@ -477,14 +514,25 @@ function formatDate(d) {
 }
 
 function handleNewsAction(action, index) {
-    if (action === 'pin') {
+    if (action === 'up' && index > 0) {
+        [newsItems[index], newsItems[index - 1]] = [newsItems[index - 1], newsItems[index]];
+        normalizeNewsOrders();
+        renderTabContent();
+    } else if (action === 'down' && index < newsItems.length - 1) {
+        [newsItems[index], newsItems[index + 1]] = [newsItems[index + 1], newsItems[index]];
+        normalizeNewsOrders();
+        renderTabContent();
+    } else if (action === 'pin') {
         // Toggle pinned in local array
         newsItems[index].pinned = !newsItems[index].pinned;
+        sortNewsItemsInPlace();
+        normalizeNewsOrders();
         renderTabContent();
     } else if (action === 'delete') {
         if (confirm('このニュースを削除しますか？')) {
             // Remove from array (will delete on save)
             newsItems.splice(index, 1);
+            normalizeNewsOrders();
             renderTabContent();
         }
     } else if (action === 'edit') {
@@ -499,8 +547,10 @@ function showNewsItemEditor(item, index) {
         title: '',
         body: '',
         date: new Date().toISOString().split('T')[0],
-        status: 'published',
-        pinned: false
+        status: 'draft',
+        pinned: false,
+        order: nextNewsOrder(),
+        published_at: null
     };
 
     const container = document.getElementById('admin-tab-content');
@@ -539,14 +589,25 @@ function showNewsItemEditor(item, index) {
             body: document.getElementById('news-edit-body').value,
             date: document.getElementById('news-edit-date').value || new Date().toISOString().split('T')[0],
             status: document.getElementById('news-edit-published').checked ? 'published' : 'draft',
-            pinned: document.getElementById('news-edit-pinned').checked
+            pinned: document.getElementById('news-edit-pinned').checked,
+            order: Number.isFinite(Number(editItem.order)) ? Number(editItem.order) : nextNewsOrder(),
+            published_at: editItem.published_at || null
         };
+
+        if (data.status === 'published' && !data.published_at) {
+            data.published_at = new Date().toISOString();
+        }
+        if (data.status !== 'published') {
+            data.published_at = null;
+        }
 
         if (isNew) {
             newsItems.push(data);
         } else {
             newsItems[index] = data;
         }
+        sortNewsItemsInPlace();
+        normalizeNewsOrders();
         renderTabContent();
     });
 
@@ -557,6 +618,7 @@ function showNewsItemEditor(item, index) {
 
 async function saveNewsFromUI() {
     try {
+        normalizeNewsOrders();
         const result = await saveNewsAdmin(newsItems);
         if (result.ok) {
             alert('保存しました');

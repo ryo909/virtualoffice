@@ -7,14 +7,27 @@ import { fetchGalleryJson, fetchNewsJson } from './staticJson.js';
 
 const GALLERY_OVERRIDE_KEY = 'virtualoffice_gallery_override';
 const NEWS_OVERRIDE_KEY = 'virtualoffice_news_override';
+const ADMIN_SESSION_KEY = 'virtualoffice_admin_session';
 
 function isDebugOverrideEnabled() {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('debug') === '1';
 }
 
+function hasValidAdminSession() {
+    if (typeof window === 'undefined') return false;
+    try {
+        const raw = localStorage.getItem(ADMIN_SESSION_KEY);
+        if (!raw) return false;
+        const session = JSON.parse(raw);
+        return Boolean(session?.expiresAt && Date.now() < session.expiresAt);
+    } catch {
+        return false;
+    }
+}
+
 function logContent(kind, { source, count, ok, error }) {
-    const safeError = typeof error === 'string' && error.trim().length > 0 ? error.trim() : '-';
+    const safeError = typeof error === 'string' && error.trim().length > 0 ? error.trim() : 'null';
     console.log(
         `[CONTENT][${kind}] source=${source} count=${Number(count) || 0} ok=${ok === true ? 'true' : 'false'} error=${safeError}`
     );
@@ -29,7 +42,7 @@ function parseJsonSafely(raw) {
 }
 
 function readOverrideObject(key) {
-    if (!isDebugOverrideEnabled()) return null;
+    if (!isDebugOverrideEnabled() || !hasValidAdminSession()) return null;
 
     try {
         const raw = localStorage.getItem(key);
@@ -84,9 +97,10 @@ function galleryDbToUi(row, index = 0) {
 
 function newsDbToUi(row, index = 0) {
     let date = '';
-    if (row.published_at) {
+    const baseDate = row.published_at || row.created_at || null;
+    if (baseDate) {
         try {
-            date = new Date(row.published_at).toISOString().split('T')[0];
+            date = new Date(baseDate).toISOString().split('T')[0];
         } catch {
             date = '';
         }
@@ -99,7 +113,9 @@ function newsDbToUi(row, index = 0) {
         date,
         status: row.status || 'published',
         pinned: row.pinned === true,
-        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index
+        order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+        created_at: row.created_at || null,
+        published_at: row.published_at || null
     };
 }
 
@@ -116,14 +132,28 @@ function galleryUiToDb(item, index) {
 }
 
 function newsUiToDb(item, index) {
+    const normalizedStatus = item.status === 'draft' ? 'draft' : 'published';
+    const normalizedOrder = Number.isFinite(Number(item.order)) ? Number(item.order) : index;
+    let publishedAt = null;
+    if (normalizedStatus === 'published') {
+        if (item.date) {
+            const parsed = new Date(item.date);
+            publishedAt = Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+        } else if (item.published_at) {
+            publishedAt = item.published_at;
+        } else {
+            publishedAt = new Date().toISOString();
+        }
+    }
+
     return {
         id: item.id || crypto.randomUUID(),
         title: item.title || '',
         body: item.body || '',
-        status: item.status === 'draft' ? 'draft' : 'published',
+        status: normalizedStatus,
         pinned: item.pinned === true,
-        order: index,
-        published_at: item.date ? new Date(item.date).toISOString() : new Date().toISOString()
+        order: normalizedOrder,
+        published_at: publishedAt
     };
 }
 
@@ -154,13 +184,6 @@ export function clearContentOverrides() {
 }
 
 export async function getGallery() {
-    const override = readOverrideObject(GALLERY_OVERRIDE_KEY);
-    if (override) {
-        const items = toGalleryItems(override);
-        logContent('GALLERY', { source: 'override', count: items.length, ok: true, error: null });
-        return { source: 'override', ok: true, items };
-    }
-
     let dbError = null;
     const supabase = await ensureSupabase();
     if (supabase) {
@@ -171,12 +194,12 @@ export async function getGallery() {
             .order('order', { ascending: true })
             .limit(200);
 
-        if (!error) {
+        if (!error && Array.isArray(data) && data.length > 0) {
             const items = (data || []).map((row, index) => galleryDbToUi(row, index));
             logContent('GALLERY', { source: 'db', count: items.length, ok: true, error: null });
             return { source: 'db', ok: true, items };
         }
-        dbError = error.message || 'db query failed';
+        dbError = error ? (error.message || 'db query failed') : 'db returned empty items';
     } else {
         dbError = 'supabase client unavailable';
     }
@@ -184,13 +207,25 @@ export async function getGallery() {
     try {
         const json = await fetchGalleryJson();
         const items = toGalleryItems(json);
-        logContent('GALLERY', { source: 'json', count: items.length, ok: true, error: dbError });
-        return { source: 'json', ok: true, items };
+        if (items.length > 0) {
+            logContent('GALLERY', { source: 'json', count: items.length, ok: true, error: dbError });
+            return { source: 'json', ok: true, items };
+        }
+        dbError = `${dbError || 'unknown'} | json returned empty items`;
     } catch (jsonErr) {
         const message = jsonErr?.message || 'json fallback failed';
-        logContent('GALLERY', { source: 'json', count: 0, ok: false, error: `${dbError || '-'} | ${message}` });
-        return { source: 'json', ok: false, error: message, items: [] };
+        dbError = `${dbError || 'unknown'} | ${message}`;
     }
+
+    const override = readOverrideObject(GALLERY_OVERRIDE_KEY);
+    if (override) {
+        const items = toGalleryItems(override);
+        logContent('GALLERY', { source: 'override', count: items.length, ok: true, error: dbError });
+        return { source: 'override', ok: true, items };
+    }
+
+    logContent('GALLERY', { source: 'json', count: 0, ok: false, error: dbError || 'all sources failed' });
+    return { source: 'json', ok: false, error: dbError || 'all sources failed', items: [] };
 }
 
 export async function getGalleryAdmin() {
@@ -279,31 +314,25 @@ export async function deleteGalleryItem(id) {
 }
 
 export async function getNews() {
-    const override = readOverrideObject(NEWS_OVERRIDE_KEY);
-    if (override) {
-        const items = toNewsItems(override);
-        logContent('NEWS', { source: 'override', count: items.length, ok: true, error: null });
-        return { source: 'override', ok: true, items };
-    }
-
     let dbError = null;
     const supabase = await ensureSupabase();
     if (supabase) {
         const { data, error } = await supabase
             .from('news_posts')
-            .select('id, title, body, status, pinned, published_at, "order"')
+            .select('id, title, body, status, pinned, published_at, created_at, "order"')
             .eq('status', 'published')
             .order('pinned', { ascending: false })
             .order('order', { ascending: true })
-            .order('published_at', { ascending: false })
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
             .limit(100);
 
-        if (!error) {
+        if (!error && Array.isArray(data) && data.length > 0) {
             const items = (data || []).map((row, index) => newsDbToUi(row, index));
             logContent('NEWS', { source: 'db', count: items.length, ok: true, error: null });
             return { source: 'db', ok: true, items };
         }
-        dbError = error.message || 'db query failed';
+        dbError = error ? (error.message || 'db query failed') : 'db returned empty items';
     } else {
         dbError = 'supabase client unavailable';
     }
@@ -311,13 +340,25 @@ export async function getNews() {
     try {
         const json = await fetchNewsJson();
         const items = toNewsItems(json);
-        logContent('NEWS', { source: 'json', count: items.length, ok: true, error: dbError });
-        return { source: 'json', ok: true, items };
+        if (items.length > 0) {
+            logContent('NEWS', { source: 'json', count: items.length, ok: true, error: dbError });
+            return { source: 'json', ok: true, items };
+        }
+        dbError = `${dbError || 'unknown'} | json returned empty items`;
     } catch (jsonErr) {
         const message = jsonErr?.message || 'json fallback failed';
-        logContent('NEWS', { source: 'json', count: 0, ok: false, error: `${dbError || '-'} | ${message}` });
-        return { source: 'json', ok: false, error: message, items: [] };
+        dbError = `${dbError || 'unknown'} | ${message}`;
     }
+
+    const override = readOverrideObject(NEWS_OVERRIDE_KEY);
+    if (override) {
+        const items = toNewsItems(override);
+        logContent('NEWS', { source: 'override', count: items.length, ok: true, error: dbError });
+        return { source: 'override', ok: true, items };
+    }
+
+    logContent('NEWS', { source: 'json', count: 0, ok: false, error: dbError || 'all sources failed' });
+    return { source: 'json', ok: false, error: dbError || 'all sources failed', items: [] };
 }
 
 export async function getNewsAdmin() {
@@ -330,10 +371,11 @@ export async function getNewsAdmin() {
 
     const { data, error } = await supabase
         .from('news_posts')
-        .select('id, title, body, status, pinned, published_at, "order"')
+        .select('id, title, body, status, pinned, published_at, created_at, "order"')
         .order('pinned', { ascending: false })
         .order('order', { ascending: true })
-        .order('published_at', { ascending: false });
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
 
     if (error) {
         const message = error.message || 'failed to load news_posts';
