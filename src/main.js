@@ -1120,11 +1120,24 @@ export async function initApp(appConfig, session) {
 
     // Keyboard handler
     const keys = { up: false, down: false, left: false, right: false, w: false, a: false, s: false, d: false };
+    function resetMovementKeys() {
+        keys.up = false;
+        keys.down = false;
+        keys.left = false;
+        keys.right = false;
+        keys.w = false;
+        keys.a = false;
+        keys.s = false;
+        keys.d = false;
+    }
 
     document.addEventListener('keydown', (e) => {
         lastActivityTime = Date.now();
 
-        if (isAdminModalVisible()) return;
+        if (isAdminModalVisible()) {
+            resetMovementKeys();
+            return;
+        }
         if (e.isComposing) return;
 
         const tag = String(document.activeElement?.tagName ?? '').toLowerCase();
@@ -1193,7 +1206,10 @@ export async function initApp(appConfig, session) {
     });
 
     document.addEventListener('keyup', (e) => {
-        if (isAdminModalVisible()) return;
+        if (isAdminModalVisible()) {
+            resetMovementKeys();
+            return;
+        }
         if (e.isComposing) return;
 
         const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
