@@ -60,7 +60,7 @@ const DEFAULT_SETTINGS = {
     bubbleX: 0,
     bubbleY: 0,
     bubbleScale: 1.0,
-    ttsEnabled: false,
+    ttsEnabled: true,
     ttsVoice: 'default',
     ttsRate: 1.0,
     ttsPitch: 1.0
@@ -740,7 +740,7 @@ function renderRoot(open) {
                         font-weight:700;
                         letter-spacing:.08em;
                         cursor:pointer;
-                    ">CHAT</button>
+                    ">チャット</button>
                     <button id="tab-settings" type="button" style="
                         flex:1;
                         height:36px;
@@ -750,7 +750,7 @@ function renderRoot(open) {
                         font-weight:700;
                         letter-spacing:.08em;
                         cursor:pointer;
-                    ">SETTINGS</button>
+                    ">設定</button>
                 </div>
                 <div style="flex:1;min-height:0;overflow:hidden;">
                     <div id="panel-chat" style="height:100%;padding:12px;overflow:hidden;position:relative;">
@@ -797,25 +797,25 @@ function renderRoot(open) {
                                 <input id="setting-bubble-y" type="number" step="1" />
                             </label>
                             <label style="display:grid;gap:4px;">
-                                <span style="font-size:12px;">scale <span id="setting-bubble-scale-value">1</span></span>
+                                <span style="font-size:12px;">サイズ <span id="setting-bubble-scale-value">1</span></span>
                                 <input id="setting-bubble-scale" type="range" min="0.5" max="2.0" step="0.01" />
                             </label>
                             <label style="display:flex;align-items:center;gap:8px;">
                                 <input id="setting-tts-enabled" type="checkbox" />
-                                <span style="font-size:12px;">TTS ON/OFF</span>
+                                <span style="font-size:12px;">読み上げ</span>
                             </label>
                             <label style="display:grid;gap:4px;">
-                                <span style="font-size:12px;">voice</span>
+                                <span style="font-size:12px;">ボイス</span>
                                 <select id="setting-tts-voice">
                                     <option value="default">default</option>
                                 </select>
                             </label>
                             <label style="display:grid;gap:4px;">
-                                <span style="font-size:12px;">rate <span id="setting-tts-rate-value">1</span></span>
+                                <span style="font-size:12px;">速度 <span id="setting-tts-rate-value">1</span></span>
                                 <input id="setting-tts-rate" type="range" min="0.5" max="2.0" step="0.01" />
                             </label>
                             <label style="display:grid;gap:4px;">
-                                <span style="font-size:12px;">pitch <span id="setting-tts-pitch-value">1</span></span>
+                                <span style="font-size:12px;">高さ <span id="setting-tts-pitch-value">1</span></span>
                                 <input id="setting-tts-pitch" type="range" min="0" max="2.0" step="0.01" />
                             </label>
                             <div style="display:flex;gap:8px;">
