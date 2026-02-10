@@ -3,6 +3,7 @@
 let spotModalOverlay = null;
 let spotModal = null;
 let isVisible = false;
+const NEWS_WALL_MODAL_CLASS = 'spot-modal-news-wall';
 
 /**
  * Initialize spot modal (call once on app start)
@@ -69,6 +70,7 @@ export function initSpotModal() {
  */
 export function showToolLinksModal(title, links) {
     if (!spotModal) return;
+    setNewsWallMode(false);
 
     document.getElementById('spot-modal-title').textContent = title;
 
@@ -106,6 +108,7 @@ export function showToolLinksModal(title, links) {
  */
 export function showBulletinModal(title, items = []) {
     if (!spotModal) return;
+    setNewsWallMode(true);
 
     document.getElementById('spot-modal-title').textContent = title;
 
@@ -113,15 +116,19 @@ export function showBulletinModal(title, items = []) {
 
     if (!items || items.length === 0) {
         body.innerHTML = `
-            <div class="bulletin-content">
-                <div class="bulletin-placeholder">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.4;">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <path d="M3 9h18" />
-                        <path d="M9 21V9" />
-                    </svg>
-                    <p>お知らせ・更新情報はここに表示されます</p>
-                    <span class="bulletin-hint">（現在記事はありません）</span>
+            <div class="news-wall-modal">
+                <div class="news-wall-modal-content">
+                    <div class="bulletin-content">
+                        <div class="bulletin-placeholder">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.4;">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <path d="M3 9h18" />
+                                <path d="M9 21V9" />
+                            </svg>
+                            <p>お知らせ・更新情報はここに表示されます</p>
+                            <span class="bulletin-hint">（現在記事はありません）</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -130,21 +137,34 @@ export function showBulletinModal(title, items = []) {
         const sorted = [...items].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         body.innerHTML = `
-            <div class="bulletin-list">
-                ${sorted.map(item => `
-                    <div class="bulletin-item" onclick="this.classList.toggle('expanded')">
-                        <div class="bulletin-header">
-                            <span class="bulletin-title">${item.title}</span>
-                            <span class="bulletin-date">${item.date}</span>
-                        </div>
-                        <div class="bulletin-body">${item.body.replace(/\n/g, '<br>')}</div>
+            <div class="news-wall-modal">
+                <div class="news-wall-modal-content">
+                    <div class="bulletin-list">
+                        ${sorted.map(item => `
+                            <div class="bulletin-item" onclick="this.classList.toggle('expanded')">
+                                <div class="bulletin-header">
+                                    <span class="bulletin-title">${item.title}</span>
+                                    <span class="bulletin-date">${item.date}</span>
+                                </div>
+                                <div class="bulletin-body">${item.body.replace(/\n/g, '<br>')}</div>
+                            </div>
+                        `).join('')}
                     </div>
-                `).join('')}
+                </div>
             </div>
         `;
     }
 
     showModal();
+}
+
+function setNewsWallMode(enabled) {
+    if (!spotModal) return;
+    if (enabled) {
+        spotModal.classList.add(NEWS_WALL_MODAL_CLASS);
+    } else {
+        spotModal.classList.remove(NEWS_WALL_MODAL_CLASS);
+    }
 }
 
 /**
@@ -162,6 +182,7 @@ export function hideSpotModal() {
     if (!spotModalOverlay) return;
 
     spotModalOverlay.classList.remove('visible');
+    setNewsWallMode(false);
     isVisible = false;
 }
 
