@@ -27,6 +27,10 @@ let isAdminAuthenticated = false;
 // Local state for admin editing
 let galleryItems = [];
 let newsItems = [];
+let newsLoaded = false;
+let newsDirty = false;
+let galleryLoaded = false;
+let galleryDirty = false;
 
 const DEBUG_HUD_STORAGE_KEY = 'vo:debugHudEnabled';
 const ADMIN_SAVE_DEBUG_KEY = 'vo:adminSaveDebug';
@@ -209,6 +213,12 @@ async function handleLogout() {
         console.warn('[Admin] logout failed:', result.error);
     }
     isAdminAuthenticated = false;
+    galleryLoaded = false;
+    galleryDirty = false;
+    newsLoaded = false;
+    newsDirty = false;
+    galleryItems = [];
+    newsItems = [];
     persistDebugHudEnabled(false);
     applyDebugHud(false);
     hideAdminModal();
@@ -314,22 +324,40 @@ function applyDebugHud(enabled) {
 }
 
 // ========== Gallery Editor ==========
-async function renderGalleryEditor(container) {
+async function renderGalleryEditor(container, opts = {}) {
+    const reload = opts.reload === true;
     container.innerHTML = '<div class="admin-editor"><div class="chat-empty">読み込み中...</div></div>';
     let loadError = '';
 
-    try {
-        const result = await getGalleryAdmin();
-        if (result.ok !== true) {
-            throw new Error(result.error || 'DBからギャラリーを取得できませんでした');
-        }
-        galleryItems = Array.isArray(result.items) ? result.items : [];
-    } catch (err) {
-        console.error('[Admin] Gallery load error:', err);
-        galleryItems = [];
-        loadError = err?.message || 'DBから取得できませんでした';
+    if (!reload && galleryDirty) {
+        renderGalleryList(container);
+        return;
     }
 
+    if (reload || !galleryLoaded) {
+        try {
+            const result = await getGalleryAdmin();
+            if (result.ok !== true) {
+                throw new Error(result.error || 'DBからギャラリーを取得できませんでした');
+            }
+            galleryItems = Array.isArray(result.items) ? result.items : [];
+            galleryLoaded = true;
+            galleryDirty = false;
+        } catch (err) {
+            console.error('[Admin] Gallery load error:', err);
+            galleryItems = [];
+            loadError = err?.message || 'DBから取得できませんでした';
+            galleryLoaded = true;
+            galleryDirty = false;
+        }
+    }
+
+    renderGalleryList(container, { loadError });
+}
+
+function renderGalleryList(container, opts = {}) {
+    if (!container) return;
+    const loadError = opts.loadError || '';
     const items = galleryItems;
 
     container.innerHTML = `
@@ -354,7 +382,6 @@ async function renderGalleryEditor(container) {
             </div>
             <div class="admin-buttons">
                 <button id="gallery-add-btn" class="admin-btn">+ アイテム追加</button>
-                <button id="gallery-save-btn" class="admin-btn primary">💾 保存</button>
             </div>
         </div>
     `;
@@ -371,26 +398,26 @@ async function renderGalleryEditor(container) {
     document.getElementById('gallery-add-btn')?.addEventListener('click', () => {
         showGalleryItemEditor(null);
     });
-
-    document.getElementById('gallery-save-btn')?.addEventListener('click', async () => {
-        await saveGalleryFromUI();
-    });
 }
 
 async function handleGalleryAction(action, index) {
+    const container = document.getElementById('admin-tab-content');
     if (action === 'up' && index > 0) {
         // Swap in local array
         [galleryItems[index], galleryItems[index - 1]] = [galleryItems[index - 1], galleryItems[index]];
-        renderTabContent();
+        galleryDirty = true;
+        renderGalleryList(container);
     } else if (action === 'down' && index < galleryItems.length - 1) {
         // Swap in local array
         [galleryItems[index], galleryItems[index + 1]] = [galleryItems[index + 1], galleryItems[index]];
-        renderTabContent();
+        galleryDirty = true;
+        renderGalleryList(container);
     } else if (action === 'delete') {
         if (confirm('このアイテムを非表示にしますか？')) {
             // Mark as inactive instead of removing
             galleryItems[index].is_active = false;
-            renderTabContent();
+            galleryDirty = true;
+            renderGalleryList(container);
         }
     } else if (action === 'edit') {
         showGalleryItemEditor(galleryItems[index], index);
@@ -443,11 +470,12 @@ function showGalleryItemEditor(item, index) {
             // Update existing item
             galleryItems[index] = data;
         }
-        renderTabContent();
+        galleryDirty = true;
+        renderGalleryList(container);
     });
 
     document.getElementById('gallery-edit-cancel').addEventListener('click', () => {
-        renderTabContent();
+        renderGalleryList(container);
     });
 }
 
@@ -461,8 +489,12 @@ async function saveGalleryFromUI() {
             console.log('[Admin] saveGalleryAdmin result', result);
         }
         if (result.ok) {
+            galleryDirty = false;
             await loadGallery();
-            renderTabContent();
+            const container = document.getElementById('admin-tab-content');
+            if (container) {
+                await renderGalleryEditor(container, { reload: true });
+            }
             alert('保存しました（DB反映確認OK）');
         } else {
             alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
@@ -506,24 +538,42 @@ function nextNewsOrder() {
     return Math.max(...newsItems.map((item) => Number(item?.order) || 0)) + 1;
 }
 
-async function renderNewsEditor(container) {
+async function renderNewsEditor(container, opts = {}) {
+    const reload = opts.reload === true;
     container.innerHTML = '<div class="admin-editor"><div class="chat-empty">読み込み中...</div></div>';
     let loadError = '';
 
-    try {
-        const result = await getNewsAdmin();
-        if (result.ok !== true) {
-            throw new Error(result.error || 'DBからニュースを取得できませんでした');
-        }
-        newsItems = Array.isArray(result.items) ? result.items : [];
-        sortNewsItemsInPlace();
-        normalizeNewsOrders();
-    } catch (err) {
-        console.error('[Admin] News load error:', err);
-        newsItems = [];
-        loadError = err?.message || 'DBから取得できませんでした';
+    if (!reload && newsDirty) {
+        renderNewsList(container);
+        return;
     }
 
+    if (reload || !newsLoaded) {
+        try {
+            const result = await getNewsAdmin();
+            if (result.ok !== true) {
+                throw new Error(result.error || 'DBからニュースを取得できませんでした');
+            }
+            newsItems = Array.isArray(result.items) ? result.items : [];
+            sortNewsItemsInPlace();
+            normalizeNewsOrders();
+            newsLoaded = true;
+            newsDirty = false;
+        } catch (err) {
+            console.error('[Admin] News load error:', err);
+            newsItems = [];
+            loadError = err?.message || 'DBから取得できませんでした';
+            newsLoaded = true;
+            newsDirty = false;
+        }
+    }
+
+    renderNewsList(container, { loadError });
+}
+
+function renderNewsList(container, opts = {}) {
+    if (!container) return;
+    const loadError = opts.loadError || '';
     const items = newsItems;
 
     container.innerHTML = `
@@ -552,7 +602,6 @@ async function renderNewsEditor(container) {
             </div>
             <div class="admin-buttons">
                 <button id="news-add-btn" class="admin-btn">+ ニュース追加</button>
-                <button id="news-save-btn" class="admin-btn primary">💾 保存</button>
             </div>
         </div>
     `;
@@ -568,10 +617,6 @@ async function renderNewsEditor(container) {
     document.getElementById('news-add-btn')?.addEventListener('click', () => {
         showNewsItemEditor(null);
     });
-
-    document.getElementById('news-save-btn')?.addEventListener('click', async () => {
-        await saveNewsFromUI();
-    });
 }
 
 function formatDate(d) {
@@ -582,26 +627,31 @@ function formatDate(d) {
 }
 
 function handleNewsAction(action, index) {
+    const container = document.getElementById('admin-tab-content');
     if (action === 'up' && index > 0) {
         [newsItems[index], newsItems[index - 1]] = [newsItems[index - 1], newsItems[index]];
         normalizeNewsOrders();
-        renderTabContent();
+        newsDirty = true;
+        renderNewsList(container);
     } else if (action === 'down' && index < newsItems.length - 1) {
         [newsItems[index], newsItems[index + 1]] = [newsItems[index + 1], newsItems[index]];
         normalizeNewsOrders();
-        renderTabContent();
+        newsDirty = true;
+        renderNewsList(container);
     } else if (action === 'pin') {
         // Toggle pinned in local array
         newsItems[index].pinned = !newsItems[index].pinned;
         sortNewsItemsInPlace();
         normalizeNewsOrders();
-        renderTabContent();
+        newsDirty = true;
+        renderNewsList(container);
     } else if (action === 'delete') {
         if (confirm('このニュースを削除しますか？')) {
             // Remove from array (will delete on save)
             newsItems.splice(index, 1);
             normalizeNewsOrders();
-            renderTabContent();
+            newsDirty = true;
+            renderNewsList(container);
         }
     } else if (action === 'edit') {
         showNewsItemEditor(newsItems[index], index);
@@ -676,11 +726,12 @@ function showNewsItemEditor(item, index) {
         }
         sortNewsItemsInPlace();
         normalizeNewsOrders();
-        renderTabContent();
+        newsDirty = true;
+        renderNewsList(container);
     });
 
     document.getElementById('news-edit-cancel').addEventListener('click', () => {
-        renderTabContent();
+        renderNewsList(container);
     });
 }
 
@@ -695,8 +746,12 @@ async function saveNewsFromUI() {
             console.log('[Admin] saveNewsAdmin result', result);
         }
         if (result.ok) {
+            newsDirty = false;
             await loadNews();
-            renderTabContent();
+            const container = document.getElementById('admin-tab-content');
+            if (container) {
+                await renderNewsEditor(container, { reload: true });
+            }
             alert('保存しました（DB反映確認OK）');
         } else {
             alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
