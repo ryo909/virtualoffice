@@ -33,6 +33,11 @@ const ADMIN_SAVE_DEBUG_KEY = 'vo:adminSaveDebug';
 function shouldLogAdminSave() {
     if (import.meta?.env?.DEV) return true;
     try {
+        if (new URLSearchParams(window.location.search).get('debug') === '1') return true;
+    } catch {
+        // ignore
+    }
+    try {
         return localStorage.getItem(ADMIN_SAVE_DEBUG_KEY) === '1';
     } catch {
         return false;
@@ -401,14 +406,17 @@ function showGalleryItemEditor(item, index) {
 
 async function saveGalleryFromUI() {
     try {
+        if (shouldLogAdminSave()) {
+            console.log('[Admin] saving galleryItems', galleryItems);
+        }
         const result = await saveGalleryAdmin(galleryItems);
         if (shouldLogAdminSave()) {
-            console.log('[Admin] saveGallery result', result);
+            console.log('[Admin] saveGalleryAdmin result', result);
         }
         if (result.ok) {
-            alert('保存しました');
             await loadGallery();
             renderTabContent();
+            alert('保存しました（DB反映確認OK）');
         } else {
             alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
         }
@@ -632,14 +640,17 @@ function showNewsItemEditor(item, index) {
 async function saveNewsFromUI() {
     try {
         normalizeNewsOrders();
+        if (shouldLogAdminSave()) {
+            console.log('[Admin] saving newsItems', newsItems);
+        }
         const result = await saveNewsAdmin(newsItems);
         if (shouldLogAdminSave()) {
-            console.log('[Admin] saveNews result', result);
+            console.log('[Admin] saveNewsAdmin result', result);
         }
         if (result.ok) {
-            alert('保存しました');
             await loadNews();
             renderTabContent();
+            alert('保存しました（DB反映確認OK）');
         } else {
             alert('保存に失敗しました: ' + (result.error || 'Unknown error'));
         }

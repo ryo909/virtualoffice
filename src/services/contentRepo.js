@@ -166,6 +166,35 @@ async function ensureSupabase() {
     return getSupabase();
 }
 
+async function verifyWrittenIds(supabase, table, ids) {
+    const normalizedIds = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean))];
+    if (normalizedIds.length === 0) {
+        return { ok: true, found: 0, expected: 0 };
+    }
+
+    const { data, error } = await supabase
+        .from(table)
+        .select('id')
+        .in('id', normalizedIds);
+
+    if (error) {
+        return {
+            ok: false,
+            error: `Write verification failed (${table}): ${error.message || 'failed to verify written ids'}. Check RLS/policies or auth.`
+        };
+    }
+
+    const found = new Set((data || []).map((row) => row?.id).filter(Boolean)).size;
+    if (found !== normalizedIds.length) {
+        return {
+            ok: false,
+            error: `Write verification failed (${table}): expected ${normalizedIds.length} rows, found ${found}. Check RLS/policies or auth.`
+        };
+    }
+
+    return { ok: true, found, expected: normalizedIds.length };
+}
+
 export function clearContentOverrides() {
     let cleared = 0;
     try {
@@ -262,12 +291,20 @@ export async function saveGalleryAdmin(items) {
     const rows = normalized.map((item, index) => galleryUiToDb(item, index));
     const keepIds = new Set(rows.map((row) => row.id));
 
-    const { error: upsertError } = await supabase
-        .from('gallery_items')
-        .upsert(rows, { onConflict: 'id' });
+    if (rows.length > 0) {
+        const { error: upsertError } = await supabase
+            .from('gallery_items')
+            .upsert(rows, { onConflict: 'id' });
 
-    if (upsertError) {
-        return { ok: false, error: upsertError.message || 'failed to upsert gallery items' };
+        if (upsertError) {
+            const message = upsertError.message || 'failed to upsert gallery items';
+            return { ok: false, error: `${message}. Check RLS/policies or auth.` };
+        }
+
+        const verify = await verifyWrittenIds(supabase, 'gallery_items', rows.map((row) => row.id));
+        if (!verify.ok) {
+            return { ok: false, error: verify.error };
+        }
     }
 
     const { data: existingRows, error: existingError } = await supabase
@@ -398,12 +435,20 @@ export async function saveNewsAdmin(items) {
     const rows = normalized.map((item, index) => newsUiToDb(item, index));
     const keepIds = new Set(rows.map((row) => row.id));
 
-    const { error: upsertError } = await supabase
-        .from('news_posts')
-        .upsert(rows, { onConflict: 'id' });
+    if (rows.length > 0) {
+        const { error: upsertError } = await supabase
+            .from('news_posts')
+            .upsert(rows, { onConflict: 'id' });
 
-    if (upsertError) {
-        return { ok: false, error: upsertError.message || 'failed to upsert news posts' };
+        if (upsertError) {
+            const message = upsertError.message || 'failed to upsert news posts';
+            return { ok: false, error: `${message}. Check RLS/policies or auth.` };
+        }
+
+        const verify = await verifyWrittenIds(supabase, 'news_posts', rows.map((row) => row.id));
+        if (!verify.ok) {
+            return { ok: false, error: verify.error };
+        }
     }
 
     const { data: existingRows, error: existingError } = await supabase
