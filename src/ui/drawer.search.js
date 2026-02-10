@@ -17,14 +17,14 @@ export function initSearchDrawer({ warpCallback }) {
 }
 
 function search(query) {
-    const q = query.toLowerCase().trim();
+    const q = String(query ?? '').toLowerCase().trim();
     const people = getPeople();
 
     if (q.length === 0) {
         searchResults = Array.from(people.values());
     } else {
         searchResults = Array.from(people.values()).filter(p =>
-            p.displayName.toLowerCase().includes(q)
+            String(p.displayName ?? '').toLowerCase().includes(q)
         );
     }
 

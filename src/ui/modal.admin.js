@@ -28,6 +28,16 @@ let galleryItems = [];
 let newsItems = [];
 
 const DEBUG_HUD_STORAGE_KEY = 'vo:debugHudEnabled';
+const ADMIN_SAVE_DEBUG_KEY = 'vo:adminSaveDebug';
+
+function shouldLogAdminSave() {
+    if (import.meta?.env?.DEV) return true;
+    try {
+        return localStorage.getItem(ADMIN_SAVE_DEBUG_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
 
 /**
  * Initialize admin modal
@@ -392,6 +402,9 @@ function showGalleryItemEditor(item, index) {
 async function saveGalleryFromUI() {
     try {
         const result = await saveGalleryAdmin(galleryItems);
+        if (shouldLogAdminSave()) {
+            console.log('[Admin] saveGallery result', result);
+        }
         if (result.ok) {
             alert('保存しました');
             await loadGallery();
@@ -620,6 +633,9 @@ async function saveNewsFromUI() {
     try {
         normalizeNewsOrders();
         const result = await saveNewsAdmin(newsItems);
+        if (shouldLogAdminSave()) {
+            console.log('[Admin] saveNews result', result);
+        }
         if (result.ok) {
             alert('保存しました');
             await loadNews();

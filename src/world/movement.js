@@ -105,8 +105,8 @@ export function setMoveTarget(x, y) {
     const nearestWalkableDist = getNearestWalkableDistance(x, y);
 
     if (!obstacleHit.hit && walkableDebug?.reason === 'hit_obstacle') {
-        const tag = String(walkableDebug.obstacle || 'unknown');
-        const kind = tag.toLowerCase().includes('desk') ? 'desk' : 'world';
+        const tag = String(walkableDebug.obstacle ?? 'unknown');
+        const kind = String(walkableDebug.obstacle ?? 'unknown').toLowerCase().includes('desk') ? 'desk' : 'world';
         console.log(`[WALKDBG] blockedBy=${kind} id=${tag}`);
     }
 

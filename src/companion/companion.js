@@ -262,11 +262,11 @@ function stripEmoji(text) {
 }
 
 function normalizeForDedup(text) {
-    return stripEmoji(text)
+    const normalized = String(stripEmoji(text) ?? '')
         .replace(DEDUP_PUNCT_REGEX, ' ')
         .replace(/\s+/g, ' ')
-        .trim()
-        .toLowerCase();
+        .trim();
+    return String(normalized ?? '').toLowerCase();
 }
 
 function isDuplicateReply(candidate, recentReplies) {
@@ -290,8 +290,8 @@ function rotateFromRandomIndex(list) {
 }
 
 function classifyReplyCategory(inputText) {
-    const input = String(inputText || '').trim();
-    const lower = input.toLowerCase();
+    const input = String(inputText ?? '').trim();
+    const lower = String(input ?? '').toLowerCase();
     if (lower.includes('ありがとう')) return 'thanks';
     if (lower.includes('おは')) return 'morning';
     if (lower.includes('疲') || lower.includes('つかれ') || lower.includes('しんど')) return 'tired';
@@ -1605,7 +1605,7 @@ function bindEvents() {
 
     on(window, 'keydown', (event) => {
         if (!event.ctrlKey || !event.shiftKey) return;
-        if (String(event.key || '').toLowerCase() !== 'k') return;
+        if (String(event.key ?? '').toLowerCase() !== 'k') return;
         event.preventDefault();
         if (window.Companion?.isOpen?.()) {
             window.Companion?.close?.();

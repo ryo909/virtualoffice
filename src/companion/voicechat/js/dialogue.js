@@ -15,7 +15,7 @@ export function getReply(text, state = {}) {
     const input = typeof text === 'string' ? text.trim() : '';
     if (!input) return 'どうしたの？';
 
-    const lower = input.toLowerCase();
+    const lower = String(input ?? '').toLowerCase();
     if (lower.includes('ありがとう')) return 'どういたしまして。いつでも呼んでね。';
     if (lower.includes('おは')) return 'おはよう。今日は何から進める？';
     if (lower.includes('疲') || lower.includes('つかれ')) return '少し深呼吸しよっか。短い休憩でも回復するよ。';

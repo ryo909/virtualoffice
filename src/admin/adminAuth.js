@@ -1,8 +1,40 @@
 // adminAuth.js - Admin authentication with password and session management
 
+import { getSupabase } from '../services/supabaseClient.js';
+
 const ADMIN_PASSWORD = '8713';
 const ADMIN_SESSION_KEY = 'virtualoffice_admin_session';
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Check if current user is a Supabase admin (in app_admin_users table)
+ * @returns {Promise<boolean>}
+ */
+export async function isSupabaseAdmin() {
+    const supabase = getSupabase();
+    if (!supabase) return false;
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
+
+        const { data, error } = await supabase
+            .from('app_admin_users')
+            .select('user_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (error) {
+            console.warn('[AdminAuth] Supabase admin check failed:', error.message);
+            return false;
+        }
+
+        return !!data;
+    } catch (err) {
+        console.warn('[AdminAuth] Supabase admin check error:', err.message);
+        return false;
+    }
+}
 
 /**
  * Check if admin session is valid

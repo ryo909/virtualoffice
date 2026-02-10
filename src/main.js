@@ -46,6 +46,7 @@ import { nextTimeOfDay, getTimePreset } from './data/timeOfDay.js';
 import { initModal, closeModal } from './ui/modal.js';
 import { openProfileEditor, openDirectorySearch, openRecentUpdates, openProfileViewer } from './library/libraryActions.js';
 import { checkAdminSession } from './admin/adminAuth.js';
+import { seedIfNeeded } from './services/seedFromJson.js';
 
 import { initCallStateMachine } from './call/callStateMachine.js';
 import { initSignaling, startCall, acceptIncomingCall, hangUp, handleCallEvent, handlePeerConnectionStateChange } from './call/signaling.js';
@@ -680,6 +681,13 @@ export async function initApp(appConfig, session) {
     loadGallery();
     loadNews();
 
+    // Seed Supabase from JSON for admin users (one-time)
+    try {
+        seedIfNeeded().catch(err => console.warn('[SEED] error:', err));
+    } catch (err) {
+        console.warn('[SEED] failed to start:', err);
+    }
+
     try {
         const storedPreset = localStorage.getItem('ambientPreset:garden');
         const preset = storedPreset || DEFAULT_AMBIENT_PRESET_ID;
@@ -813,6 +821,10 @@ export async function initApp(appConfig, session) {
     window.addEventListener('keydown', (e) => {
         // Chat focus check
         if (state.ui.modal !== 'none' && state.ui.modal !== 'chat') return;
+        if (isAdminModalVisible()) return;
+        if (e.isComposing) return;
+
+        const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
 
         if (e.code === 'Enter') {
             if (document.activeElement === document.getElementById('chat-input')) {
@@ -830,7 +842,7 @@ export async function initApp(appConfig, session) {
             console.log('[Debug] Spots overlay:', state.debug.showSpots ? 'ON' : 'OFF');
         }
 
-        if (e.key.toLowerCase() === 'e') {
+        if (key === 'e') {
             if (nearbySpotId) {
                 const now = Date.now();
                 if (nearbySpotId === lastOpenedSpotId && now - lastOpenedAt < SPOT_COOLDOWN_MS) {
@@ -1112,7 +1124,11 @@ export async function initApp(appConfig, session) {
     document.addEventListener('keydown', (e) => {
         lastActivityTime = Date.now();
 
-        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (isAdminModalVisible()) return;
+        if (e.isComposing) return;
+
+        const tag = String(document.activeElement?.tagName ?? '').toLowerCase();
+        const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
         const isTypingTarget = tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable;
         if (isTypingTarget) return;
 
@@ -1120,10 +1136,10 @@ export async function initApp(appConfig, session) {
         if (e.key === 'ArrowDown') keys.down = true;
         if (e.key === 'ArrowLeft') keys.left = true;
         if (e.key === 'ArrowRight') keys.right = true;
-        if (e.key.toLowerCase() === 'w') keys.w = true;
-        if (e.key.toLowerCase() === 'a') keys.a = true;
-        if (e.key.toLowerCase() === 's') keys.s = true;
-        if (e.key.toLowerCase() === 'd') keys.d = true;
+        if (key === 'w') keys.w = true;
+        if (key === 'a') keys.a = true;
+        if (key === 's') keys.s = true;
+        if (key === 'd') keys.d = true;
 
         // Debug keys
         if (e.key === 'F9') {
@@ -1159,13 +1175,13 @@ export async function initApp(appConfig, session) {
             refreshDeskPanel();
         }
         // Area switch (g: garden, o: office)
-        if (e.key.toLowerCase() === 'g') {
+        if (key === 'g') {
             void switchArea('area:garden');
         }
-        if (e.key.toLowerCase() === 'o') {
+        if (key === 'o') {
             void switchArea('area:core');
         }
-        if (e.key.toLowerCase() === 'l') {
+        if (key === 'l') {
             if (e.repeat) return;
             const nextArea = (state.world.areaId === 'area:library') ? 'area:core' : 'area:library';
             if (!getWorldModel(nextArea)) {
@@ -1177,14 +1193,19 @@ export async function initApp(appConfig, session) {
     });
 
     document.addEventListener('keyup', (e) => {
+        if (isAdminModalVisible()) return;
+        if (e.isComposing) return;
+
+        const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+
         if (e.key === 'ArrowUp') keys.up = false;
         if (e.key === 'ArrowDown') keys.down = false;
         if (e.key === 'ArrowLeft') keys.left = false;
         if (e.key === 'ArrowRight') keys.right = false;
-        if (e.key.toLowerCase() === 'w') keys.w = false;
-        if (e.key.toLowerCase() === 'a') keys.a = false;
-        if (e.key.toLowerCase() === 's') keys.s = false;
-        if (e.key.toLowerCase() === 'd') keys.d = false;
+        if (key === 'w') keys.w = false;
+        if (key === 'a') keys.a = false;
+        if (key === 's') keys.s = false;
+        if (key === 'd') keys.d = false;
     });
 
     // Presence throttling state
@@ -1537,7 +1558,7 @@ function handleSpotAction(action, spot) {
                 state.ui.timeMode = next;
                 setTimeMode(next);
                 console.log('[Temizu] cycleTimeMode', { areaId, prev, next });
-                showToast(`時間: ${getTimePreset(next).label.toLowerCase()}`, 'success');
+                showToast(`時間: ${String(getTimePreset(next).label ?? '').toLowerCase()}`, 'success');
             }
             break;
         default:

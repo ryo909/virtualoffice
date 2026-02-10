@@ -283,8 +283,8 @@ function extractWalkableFromZones(zones = []) {
         if (!bounds) return;
 
         const isExplicitWalkable = zone.walkable === true;
-        const type = String(zone.type || zone.kind || '').toLowerCase();
-        const id = String(zone.id || '').toLowerCase();
+        const type = String(zone.type ?? zone.kind ?? '').toLowerCase();
+        const id = String(zone.id ?? '').toLowerCase();
 
         let isWalkable = false;
         if (isExplicitWalkable) {
@@ -383,8 +383,7 @@ function unionRects(a, b) {
 }
 
 function isDeskObstacle(obs) {
-    const tag = String(obs?.tag || '');
-    return tag.toLowerCase().includes('desk');
+    return String(obs?.tag ?? '').toLowerCase().includes('desk');
 }
 
 function buildDeskColliders(desks = []) {
