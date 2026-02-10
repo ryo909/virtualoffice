@@ -22,6 +22,7 @@ let isVisible = false;
 let currentTab = 'gallery';
 let onDebugHudToggle = null;
 let getDebugHudEnabled = null;
+let isAdminAuthenticated = false;
 
 // Local state for admin editing
 let galleryItems = [];
@@ -58,7 +59,8 @@ export function initAdminModal(options = {}) {
         <div id="admin-modal" class="admin-modal">
             <div id="admin-login-view" class="admin-view">
                 <h2>🔐 管理者ログイン</h2>
-                <input type="password" id="admin-password" placeholder="パスワード" maxlength="10">
+                <input type="email" id="admin-email" placeholder="メールアドレス" autocomplete="email">
+                <input type="password" id="admin-password" placeholder="パスワード" autocomplete="current-password">
                 <div id="admin-login-error" class="admin-error"></div>
                 <div class="admin-buttons">
                     <button id="admin-login-btn" class="admin-btn primary">ログイン</button>
@@ -96,16 +98,25 @@ export function initAdminModal(options = {}) {
     document.getElementById('app').appendChild(adminOverlay);
 
     // Event listeners
-    document.getElementById('admin-login-btn').addEventListener('click', handleLogin);
+    document.getElementById('admin-login-btn').addEventListener('click', () => { void handleLogin(); });
     document.getElementById('admin-cancel-btn').addEventListener('click', hideAdminModal);
-    document.getElementById('admin-logout-btn').addEventListener('click', handleLogout);
+    document.getElementById('admin-logout-btn').addEventListener('click', () => { void handleLogout(); });
     document.getElementById('admin-save-btn').addEventListener('click', handleSave);
     document.getElementById('admin-close-btn').addEventListener('click', hideAdminModal);
-    document.getElementById('admin-debug-hud-toggle')?.addEventListener('change', handleDebugHudToggleChange);
+    document.getElementById('admin-debug-hud-toggle')?.addEventListener('change', () => { void handleDebugHudToggleChange(); });
 
-    // Password enter key
+    // Enter key handling
+    document.getElementById('admin-email').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            void handleLogin();
+        }
+    });
     document.getElementById('admin-password').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') handleLogin();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            void handleLogin();
+        }
     });
 
     // Tab switching
@@ -132,18 +143,20 @@ export function initAdminModal(options = {}) {
 /**
  * Show admin modal
  */
-export function showAdminModal() {
+export async function showAdminModal() {
     if (!adminOverlay) return;
 
     // Check if already logged in
-    if (checkAdminSession()) {
+    isAdminAuthenticated = await checkAdminSession();
+    if (isAdminAuthenticated) {
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').style.display = 'block';
-        syncDebugHudToggleUI();
+        await syncDebugHudToggleUI();
         renderTabContent();
     } else {
         document.getElementById('admin-login-view').style.display = 'block';
         document.getElementById('admin-panel-view').style.display = 'none';
+        document.getElementById('admin-email').value = '';
         document.getElementById('admin-password').value = '';
         document.getElementById('admin-login-error').textContent = '';
         applyDebugHud(false);
@@ -152,9 +165,9 @@ export function showAdminModal() {
     adminOverlay.classList.add('visible');
     isVisible = true;
 
-    // Focus password input
+    // Focus login input
     setTimeout(() => {
-        document.getElementById('admin-password')?.focus();
+        (isAdminAuthenticated ? document.getElementById('admin-save-btn') : document.getElementById('admin-email'))?.focus();
     }, 100);
 }
 
@@ -167,28 +180,45 @@ export function hideAdminModal() {
     isVisible = false;
 }
 
-function handleLogin() {
+async function handleLogin() {
+    const email = document.getElementById('admin-email').value;
     const password = document.getElementById('admin-password').value;
-    const result = loginAdmin(password);
+    const errorEl = document.getElementById('admin-login-error');
+    if (errorEl) {
+        errorEl.textContent = '';
+    }
+    const result = await loginAdmin(email, password);
 
     if (result.success) {
+        isAdminAuthenticated = true;
         document.getElementById('admin-login-view').style.display = 'none';
         document.getElementById('admin-panel-view').style.display = 'block';
-        syncDebugHudToggleUI();
+        await syncDebugHudToggleUI();
         renderTabContent();
     } else {
-        document.getElementById('admin-login-error').textContent = result.error;
+        isAdminAuthenticated = false;
+        if (errorEl) {
+            errorEl.textContent = result.error || 'ログインに失敗しました';
+        }
     }
 }
 
-function handleLogout() {
-    logoutAdmin();
+async function handleLogout() {
+    const result = await logoutAdmin();
+    if (!result.success) {
+        console.warn('[Admin] logout failed:', result.error);
+    }
+    isAdminAuthenticated = false;
     persistDebugHudEnabled(false);
     applyDebugHud(false);
     hideAdminModal();
 }
 
 function handleSave() {
+    if (!isAdminAuthenticated) {
+        alert('先に管理者ログインしてください');
+        return;
+    }
     if (currentTab === 'gallery') {
         saveGalleryFromUI();
     } else if (currentTab === 'news') {
@@ -202,27 +232,43 @@ function renderTabContent() {
 
     if (currentTab === 'gallery') {
         renderGalleryEditor(container);
-        if (saveBtn) saveBtn.style.display = '';
+        if (saveBtn) {
+            saveBtn.style.display = '';
+            saveBtn.disabled = isAdminAuthenticated !== true;
+        }
     } else if (currentTab === 'news') {
         renderNewsEditor(container);
-        if (saveBtn) saveBtn.style.display = '';
+        if (saveBtn) {
+            saveBtn.style.display = '';
+            saveBtn.disabled = isAdminAuthenticated !== true;
+        }
     } else if (currentTab === 'export') {
         renderExportPanel(container);
-        if (saveBtn) saveBtn.style.display = 'none';
+        if (saveBtn) {
+            saveBtn.style.display = 'none';
+            saveBtn.disabled = true;
+        }
     } else if (currentTab === 'dm') {
         renderDmMaintenancePanel(container);
-        if (saveBtn) saveBtn.style.display = 'none';
+        if (saveBtn) {
+            saveBtn.style.display = 'none';
+            saveBtn.disabled = true;
+        }
     } else if (currentTab === 'global') {
         renderGlobalMaintenancePanel(container);
-        if (saveBtn) saveBtn.style.display = 'none';
+        if (saveBtn) {
+            saveBtn.style.display = 'none';
+            saveBtn.disabled = true;
+        }
     }
 }
 
-function handleDebugHudToggleChange() {
+async function handleDebugHudToggleChange() {
     const checkbox = document.getElementById('admin-debug-hud-toggle');
     if (!checkbox) return;
 
-    if (!checkAdminSession()) {
+    isAdminAuthenticated = await checkAdminSession();
+    if (!isAdminAuthenticated) {
         checkbox.checked = false;
         persistDebugHudEnabled(false);
         applyDebugHud(false);
@@ -234,14 +280,15 @@ function handleDebugHudToggleChange() {
     applyDebugHud(enabled);
 }
 
-function syncDebugHudToggleUI() {
+async function syncDebugHudToggleUI() {
     const checkbox = document.getElementById('admin-debug-hud-toggle');
     if (!checkbox) return;
 
-    const admin = checkAdminSession();
-    const enabled = admin && (getDebugHudEnabled?.() ?? loadDebugHudEnabled());
+    const admin = await checkAdminSession();
+    isAdminAuthenticated = admin;
+    const enabled = admin === true && (getDebugHudEnabled?.() ?? loadDebugHudEnabled());
     checkbox.checked = enabled;
-    checkbox.disabled = !admin;
+    checkbox.disabled = admin !== true;
     applyDebugHud(enabled);
 }
 
@@ -262,7 +309,7 @@ function persistDebugHudEnabled(enabled) {
 }
 
 function applyDebugHud(enabled) {
-    const safeEnabled = enabled === true && checkAdminSession();
+    const safeEnabled = enabled === true && isAdminAuthenticated === true;
     onDebugHudToggle?.(safeEnabled);
 }
 

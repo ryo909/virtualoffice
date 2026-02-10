@@ -1,22 +1,27 @@
-// adminAuth.js - Admin authentication with password and session management
+// adminAuth.js - Admin authentication with Supabase Auth
 
-import { getSupabase } from '../services/supabaseClient.js';
+import { getSupabase, initSupabase } from '../services/supabaseClient.js';
 
-const ADMIN_PASSWORD = '8713';
-const ADMIN_SESSION_KEY = 'virtualoffice_admin_session';
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+async function ensureSupabaseClient() {
+    try {
+        await initSupabase();
+    } catch (err) {
+        console.warn('[AdminAuth] initSupabase failed:', err?.message || err);
+    }
+    return getSupabase();
+}
 
 /**
  * Check if current user is a Supabase admin (in app_admin_users table)
  * @returns {Promise<boolean>}
  */
 export async function isSupabaseAdmin() {
-    const supabase = getSupabase();
+    const supabase = await ensureSupabaseClient();
     if (!supabase) return false;
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return false;
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) return false;
 
         const { data, error } = await supabase
             .from('app_admin_users')
@@ -31,69 +36,112 @@ export async function isSupabaseAdmin() {
 
         return !!data;
     } catch (err) {
-        console.warn('[AdminAuth] Supabase admin check error:', err.message);
+        console.warn('[AdminAuth] Supabase admin check error:', err?.message || err);
         return false;
     }
 }
 
 /**
  * Check if admin session is valid
+ * @returns {Promise<boolean>}
  */
-export function checkAdminSession() {
-    const session = localStorage.getItem(ADMIN_SESSION_KEY);
-    if (!session) return false;
+export async function checkAdminSession() {
+    const supabase = await ensureSupabaseClient();
+    if (!supabase) return false;
 
     try {
-        const parsed = JSON.parse(session);
-        if (parsed.expiresAt && Date.now() < parsed.expiresAt) {
-            return true;
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+            console.warn('[AdminAuth] getSession failed:', error.message);
+            return false;
         }
-        // Session expired
-        localStorage.removeItem(ADMIN_SESSION_KEY);
-        return false;
-    } catch (e) {
-        localStorage.removeItem(ADMIN_SESSION_KEY);
+        return Boolean(data?.session);
+    } catch (err) {
+        console.warn('[AdminAuth] session check error:', err?.message || err);
         return false;
     }
 }
 
 /**
- * Attempt admin login with password
+ * Attempt admin login with Supabase Auth
+ * @param {string} email
  * @param {string} password
- * @returns {{success: boolean, error?: string}}
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
-export function loginAdmin(password) {
-    if (password !== ADMIN_PASSWORD) {
-        return { success: false, error: 'パスワードが違います' };
+export async function loginAdmin(email, password) {
+    const supabase = await ensureSupabaseClient();
+    if (!supabase) {
+        return { success: false, error: 'Supabase client unavailable' };
     }
 
-    const session = {
-        loggedInAt: Date.now(),
-        expiresAt: Date.now() + SESSION_DURATION_MS
-    };
-    localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
-    console.log('[AdminAuth] Logged in, expires:', new Date(session.expiresAt));
-    return { success: true };
+    const safeEmail = String(email ?? '').trim();
+    const safePassword = String(password ?? '');
+    if (!safeEmail || !safePassword) {
+        return { success: false, error: 'メールアドレスとパスワードを入力してください' };
+    }
+
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: safeEmail,
+            password: safePassword
+        });
+        if (error) {
+            return { success: false, error: error.message || 'ログインに失敗しました' };
+        }
+
+        if (!data?.session) {
+            return { success: false, error: 'ログインに失敗しました: セッションを取得できませんでした' };
+        }
+
+        const admin = await isSupabaseAdmin();
+        if (!admin) {
+            await supabase.auth.signOut();
+            return { success: false, error: '管理者権限がありません' };
+        }
+
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err?.message || 'ログインに失敗しました' };
+    }
 }
 
 /**
  * Logout admin
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
-export function logoutAdmin() {
-    localStorage.removeItem(ADMIN_SESSION_KEY);
-    console.log('[AdminAuth] Logged out');
+export async function logoutAdmin() {
+    const supabase = await ensureSupabaseClient();
+    if (!supabase) {
+        return { success: false, error: 'Supabase client unavailable' };
+    }
+
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            return { success: false, error: error.message || 'ログアウトに失敗しました' };
+        }
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err?.message || 'ログアウトに失敗しました' };
+    }
 }
 
 /**
  * Get session info
+ * @returns {Promise<{loggedInAt: Date|null, expiresAt: Date|null, remainingMs: number}|null>}
  */
-export function getSessionInfo() {
-    if (!checkAdminSession()) return null;
+export async function getSessionInfo() {
+    const supabase = await ensureSupabaseClient();
+    if (!supabase) return null;
 
-    const session = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY));
-    return {
-        loggedInAt: new Date(session.loggedInAt),
-        expiresAt: new Date(session.expiresAt),
-        remainingMs: session.expiresAt - Date.now()
-    };
+    try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error || !data?.session) return null;
+        const loggedInAt = data.session.created_at ? new Date(data.session.created_at) : null;
+        const expiresAt = data.session.expires_at ? new Date(data.session.expires_at * 1000) : null;
+        const remainingMs = expiresAt ? Math.max(0, expiresAt.getTime() - Date.now()) : 0;
+        return { loggedInAt, expiresAt, remainingMs };
+    } catch {
+        return null;
+    }
 }

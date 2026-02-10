@@ -221,8 +221,8 @@ function loadDebugHudPreference() {
     }
 }
 
-function applyDebugHudVisibility() {
-    const enabled = checkAdminSession() && loadDebugHudPreference();
+async function applyDebugHudVisibility() {
+    const enabled = (await checkAdminSession()) && loadDebugHudPreference();
     document.body.classList.toggle('debug-hud-on', enabled);
     return enabled;
 }
@@ -287,7 +287,7 @@ export async function initApp(appConfig, session) {
 
     // Initialize debug HUD (development only)
     initDebugHud();
-    applyDebugHudVisibility();
+    void applyDebugHudVisibility();
 
     // Set spawn position
     const spawn = getSpawnPoint('lobby');
@@ -671,7 +671,7 @@ export async function initApp(appConfig, session) {
     initModal();
     initAdminModal({
         onDebugHudToggle: (enabled) => {
-            const safeEnabled = enabled === true && checkAdminSession();
+            const safeEnabled = enabled === true;
             document.body.classList.toggle('debug-hud-on', safeEnabled);
         },
         getDebugHudEnabled: () => document.body.classList.contains('debug-hud-on')
@@ -1362,7 +1362,7 @@ export async function initApp(appConfig, session) {
                 if (dist <= proximity) {
                     // Arrived within range
                     if (state.queuedAction.actionType === 'openAdmin') {
-                        showAdminModal();
+                        void showAdminModal();
                     }
                     state.queuedAction = null;
                     // Stop movement if we just arrived? 
@@ -1551,7 +1551,7 @@ function handleSpotAction(action, spot) {
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= proximity) {
-                showAdminModal();
+                void showAdminModal();
             } else {
                 // Auto-approach
                 console.log('[Main] Admin spot far, auto-approaching...', distance);
