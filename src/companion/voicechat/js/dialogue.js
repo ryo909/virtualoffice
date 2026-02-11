@@ -1,54 +1,71 @@
-const DEFAULT_LINES = [
-    'うん、聞いてるよ。続けて。',
-    'なるほど。次の一手を一緒に考えよう。',
-    'いい視点だね。もう少し詳しく教えて。',
-    '了解。必要なら要点だけ短くまとめるよ。'
-];
+import { step, proactive as engineProactive } from "./engine/index.js";
+import { loadState, saveState, sanitizeState, initState } from "./engine/state.js";
 
-export const defaultCharacter = 'まるもち';
+export const defaultCharacter = "まるもち";
 
-function pickRandom(lines) {
-    return lines[Math.floor(Math.random() * lines.length)] || 'どうしたの？';
+function isDebugEnabled() {
+  try {
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get("companionDebug") === "1") return true;
+    return localStorage.getItem("companion:debug") === "1";
+  } catch {
+    return false;
+  }
 }
 
 export function getReply(text, state = {}) {
-    const input = typeof text === 'string' ? text.trim() : '';
-    if (!input) return 'どうしたの？';
-
-    const lower = String(input ?? '').toLowerCase();
-    if (lower.includes('ありがとう')) return 'どういたしまして。いつでも呼んでね。';
-    if (lower.includes('おは')) return 'おはよう。今日は何から進める？';
-    if (lower.includes('疲') || lower.includes('つかれ')) return '少し深呼吸しよっか。短い休憩でも回復するよ。';
-
-    const custom = Array.isArray(state?.candidateReplies) ? state.candidateReplies : null;
-    if (custom && custom.length > 0) {
-        return pickRandom(custom);
-    }
-
-    return pickRandom(DEFAULT_LINES);
+  const ctx = { character: state?.character || "", messages: state?.messages || [] };
+  const res = step(text, ctx, initState());
+  return res?.text || "";
 }
 
 export function reply(text, state = {}) {
-    return getReply(text, state);
+  return getReply(text, state);
 }
 
 export class DialogueSystem {
-    constructor(initialState = {}) {
-        this.state = (initialState && typeof initialState === 'object') ? { ...initialState } : {};
+  constructor(initialState = {}) {
+    const stored = (typeof window !== "undefined" && window.localStorage) ? loadState() : initState();
+    this.state = sanitizeState({ ...stored, ...(initialState || {}) });
+    this.debug = isDebugEnabled();
+  }
+
+  setState(nextState = {}) {
+    if (!nextState || typeof nextState !== "object") return this.state;
+    this.state = sanitizeState({ ...this.state, ...nextState });
+    try { saveState(this.state); } catch {}
+    return this.state;
+  }
+
+  respond(text, statePatch = {}) {
+    if (statePatch && typeof statePatch === "object") {
+      // messages/character は ctx に渡す。その他は state の上書き対象（必要なら将来拡張）
     }
 
-    setState(nextState = {}) {
-        if (!nextState || typeof nextState !== 'object') return this.state;
-        this.state = { ...this.state, ...nextState };
-        return this.state;
-    }
+    const ctx = {
+      character: statePatch?.character || "",
+      messages: Array.isArray(statePatch?.messages) ? statePatch.messages : []
+    };
 
-    respond(text, statePatch = {}) {
-        if (statePatch && typeof statePatch === 'object') {
-            this.state = { ...this.state, ...statePatch };
-        }
-        return getReply(text, this.state);
-    }
+    const res = step(text, ctx, this.state);
+    this.state = sanitizeState(res.state);
+    try { saveState(this.state); } catch {}
+    if (this.debug) console.log("[DIALOGUE_V3]", res.meta);
+    return { text: res.text, meta: res.meta };
+  }
+
+  proactive(statePatch = {}) {
+    const ctx = {
+      character: statePatch?.character || "",
+      messages: Array.isArray(statePatch?.messages) ? statePatch.messages : []
+    };
+
+    const res = engineProactive(ctx, this.state);
+    this.state = sanitizeState(res.state);
+    try { saveState(this.state); } catch {}
+    if (this.debug) console.log("[DIALOGUE_V3_PROACTIVE]", res.meta);
+    return { text: res.text, meta: res.meta };
+  }
 }
 
 export default { getReply, reply, defaultCharacter, DialogueSystem };

@@ -324,19 +324,14 @@ function extractKeyword(text) {
 }
 
 function addKeywordReference(replyText, keyword) {
-    const base = String(replyText || '').trim();
-    const key = String(keyword || '').trim();
-    if (!key) return base;
-    if (base.includes(key)) return base;
-    if (!base) return `${key}について、もう少し聞かせて。`;
-    const stripped = base.replace(/[。.!?！？\s]+$/g, '');
-    return `${stripped}。${key}についてはどう感じてる？`;
+    // ✅ 不自然さの原因なので、ここでは何も足さない
+    return String(replyText || '').trim();
 }
 
 function pickAlternativeReply(category, keyword, recentReplies) {
     const lines = DEDUP_CATEGORY_LINES[category] || DEDUP_CATEGORY_LINES.default;
     for (const line of rotateFromRandomIndex(lines)) {
-        const candidate = addKeywordReference(line, keyword);
+        const candidate = String(line || '').trim();
         if (!isDuplicateReply(candidate, recentReplies)) return candidate;
     }
     return '';
@@ -345,17 +340,16 @@ function pickAlternativeReply(category, keyword, recentReplies) {
 function buildFallbackReply(keyword, recentReplies) {
     const key = String(keyword || '').trim();
     const questions = key
-        ? [`${key}でいま一番気になるのはどこ？`, `${key}の続きを少し聞かせて。`]
-        : ['今いちばん気になることは何？', 'もう少し詳しく教えて。'];
-
-    for (const ack of rotateFromRandomIndex(DEDUP_FALLBACK_ACKS)) {
+        ? [`${key}って、いまどんな感じ〜？`, `${key}の話、もうちょい聞かせて〜。`]
+        : ['いま何してた〜？', 'もうちょいだけ聞かせて〜。'];
+    const acks = ['うんうん。', 'なるほどねぇ。', 'おっけー。', 'たしかに〜。'];
+    for (const ack of rotateFromRandomIndex(acks)) {
         for (const q of rotateFromRandomIndex(questions)) {
             const candidate = `${ack}${q}`;
             if (!isDuplicateReply(candidate, recentReplies)) return candidate;
         }
     }
-
-    return `${DEDUP_FALLBACK_ACKS[0]}${questions[0]}`;
+    return `${acks[0]}${questions[0]}`;
 }
 
 function dedupeReply(replyText, { inputText = '', keyword = '', recentReplies = [] } = {}) {
@@ -1317,8 +1311,23 @@ function maybeProactiveSpeak(force = false) {
     }
 
     const s = loadSettings();
-    const keyword = extractKeyword(getLastUserText());
-    const rawLine = addKeywordReference(pickProactiveLine(), keyword);
+    const lastUser = getLastUserText();
+    const keyword = extractKeyword(lastUser);
+
+    let rawLine = '';
+    try {
+        const ds = getDialogue();
+        if (ds && typeof ds.proactive === 'function') {
+            const log = loadChatLog();
+            const contextMessages = log.slice(-Math.max(MIN_CONTEXT_TURNS, 6));
+            const r = ds.proactive({ character: getCharacterName(), messages: [...contextMessages] });
+            rawLine = textFromDialogueResult(r).trim();
+        }
+    } catch (e) {
+        console.warn('[COMPANION] proactive v3 failed', e);
+        rawLine = '';
+    }
+    if (!rawLine) rawLine = pickProactiveLine();
     const proactiveDedup = dedupeReply(rawLine, {
         inputText: getLastUserText(),
         keyword,
@@ -1424,7 +1433,7 @@ async function sendChat(text) {
         });
         const [result] = await Promise.all([replyPromise, minDelay(MIN_TYPING_MS)]);
         const reply = textFromDialogueResult(result).trim();
-        safeReply = addKeywordReference(reply || safeReply, keyword);
+        safeReply = (reply || safeReply);
         const dedup = dedupeReply(safeReply, {
             inputText: clean,
             keyword,
