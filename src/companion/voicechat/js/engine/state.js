@@ -13,6 +13,7 @@ export function initState(now = Date.now()) {
 
     // task slots
     pending: null, // { type:'slot_fill', slot, askedAt, tries }
+    expect: null, // { type, options?, createdTurn, ttl, meta? }
     slots: {
       taskName: "",
       audience: "",
@@ -52,10 +53,46 @@ export function initState(now = Date.now()) {
 }
 
 function asStr(x) { return typeof x === "string" ? x : ""; }
+function asNum(x, fallback = 0) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 function normalizeRecent(list) {
   if (!Array.isArray(list)) return [];
   return list.map((s) => asStr(s).trim()).filter(Boolean).slice(-10);
+}
+
+function normalizeExpect(expect) {
+  if (!expect || typeof expect !== "object") return null;
+  const type = asStr(expect.type).trim();
+  if (!["choice", "yesno", "freeText", "clarify"].includes(type)) return null;
+
+  const ttl = Math.max(0, asNum(expect.ttl, 0));
+  if (ttl <= 0) return null;
+
+  const obj = {
+    type,
+    createdTurn: asNum(expect.createdTurn, 0),
+    ttl
+  };
+
+  if (type === "choice") {
+    const A = asStr(expect.options?.A).trim();
+    const B = asStr(expect.options?.B).trim();
+    const C = asStr(expect.options?.C).trim();
+    obj.options = { A, B, C };
+  }
+
+  if (expect.meta && typeof expect.meta === "object") {
+    obj.meta = {
+      source: asStr(expect.meta.source).trim(),
+      topicId: asStr(expect.meta.topicId).trim(),
+      allowInTask: Boolean(expect.meta.allowInTask)
+    };
+  }
+
+  return obj;
 }
 
 export function sanitizeState(obj) {
@@ -68,6 +105,7 @@ export function sanitizeState(obj) {
     turn: Number(s.turn) || 0,
     mode: (s.mode === "task" || s.mode === "comfort") ? s.mode : "chat",
     pending: null,
+    expect: normalizeExpect(s.expect),
     slots: {
       taskName: asStr(s.slots?.taskName),
       audience: asStr(s.slots?.audience),
@@ -151,6 +189,29 @@ export function setPending(state, slot) {
 
 export function clearPending(state) {
   state.pending = null;
+  return state;
+}
+
+export function setExpect(state, expectObj) {
+  const turn = asNum(state?.turn, 0);
+  const merged = normalizeExpect({ ...(expectObj || {}), createdTurn: turn });
+  state.expect = merged;
+  return state;
+}
+
+export function clearExpect(state) {
+  state.expect = null;
+  return state;
+}
+
+export function decayExpect(state) {
+  if (!state?.expect) return state;
+  const ttl = asNum(state.expect.ttl, 0) - 1;
+  if (ttl <= 0) {
+    state.expect = null;
+    return state;
+  }
+  state.expect.ttl = ttl;
   return state;
 }
 

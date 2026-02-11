@@ -1,5 +1,20 @@
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)] || ""; }
 
+function parseChoiceLine(line) {
+  const s = String(line || "");
+  const posA = s.indexOf("A)");
+  const posB = s.indexOf("B)");
+  const posC = s.indexOf("C)");
+  if (posA < 0 || posB < 0 || posC < 0) return null;
+
+  const cut = (from, to) => s.slice(from + 2, to).replace(/\s+/g, " ").trim();
+  const A = cut(posA, posB);
+  const B = cut(posB, posC);
+  const C = s.slice(posC + 2).replace(/\s+/g, " ").trim();
+  if (!A && !B && !C) return null;
+  return { A, B, C };
+}
+
 export const TOPICS = [
   { id:"weather", label:"天気", re: /(寒|さむ|暑|あつ|あっつ|雨|あめ|天気|雪|ゆき|風|かぜ|晴れ|はれ|曇|くもり|じめ|湿気|花粉|台風)/,
     reacts:["うわ〜それ、わかる…","それそれ〜","うんうん、だよねぇ"],
@@ -48,6 +63,18 @@ export function detectTopic(text) {
   if (!t) return null;
   for (const tp of TOPICS) if (tp.re.test(t)) return { id: tp.id, label: tp.label };
   return null;
+}
+
+export function getTopicChoiceOptions(topicId) {
+  const id = String(topicId || "").trim();
+  if (!id) return { A: "", B: "", C: "" };
+  const tp = TOPICS.find((x) => x.id === id);
+  if (!tp) return { A: "", B: "", C: "" };
+  for (const line of tp.choices || []) {
+    const parsed = parseChoiceLine(line);
+    if (parsed) return parsed;
+  }
+  return { A: "", B: "", C: "" };
 }
 
 export const SMALLTALK_MENU_LINES = [

@@ -1,6 +1,16 @@
-import { parseUserText } from "./nlu.js";
-import { detectTopic } from "./topics.js";
-import { initState, applyContextMessages, sanitizeState, firstMissingSlot, setPending, clearPending } from "./state.js";
+import { parseUserText, enhanceParsedWithExpect } from "./nlu.js";
+import { detectTopic, getTopicChoiceOptions } from "./topics.js";
+import {
+  initState,
+  applyContextMessages,
+  sanitizeState,
+  firstMissingSlot,
+  setPending,
+  clearPending,
+  setExpect,
+  clearExpect,
+  decayExpect
+} from "./state.js";
 import { decideAct } from "./policy.js";
 import { renderCandidates } from "./nlg.js";
 import { pickNonRepeating, rememberReply } from "./repetition.js";
@@ -83,12 +93,118 @@ function ensurePendingForNextMissing(state){
   if (missing) setPending(state, missing);
 }
 
+function shouldForceDevTopic(inputType) {
+  return ["log", "code", "url", "list"].includes(String(inputType || ""));
+}
+
+function updateExpectFromAct(state, act) {
+  const kind = String(act?.kind || "");
+
+  if ([
+    "CHOICE_PICK", "CHOICE_ACK", "LONG_SHARE_PICK", "DEV_TRIAGE_PICK", "URL_CLARIFY_PICK",
+    "LIST_SUMMARY_PICK", "YESNO_PICK", "EXIT_ACK", "TASK_START", "TASK_ASK_SLOT"
+  ].includes(kind)) {
+    clearExpect(state);
+    return;
+  }
+
+  if (kind === "TOPIC_MOVE" && act.mode === "choice") {
+    setExpect(state, {
+      type: "choice",
+      options: getTopicChoiceOptions(act.topic?.id),
+      ttl: 3,
+      meta: { source: "topic_choice", topicId: String(act.topic?.id || "") }
+    });
+    return;
+  }
+
+  if (kind === "EXIT_CHECK") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "戻る", B: "雑談つづける", C: "未定" },
+      ttl: 3,
+      meta: { source: "exit_check" }
+    });
+    return;
+  }
+
+  if (kind === "LONG_SHARE_MENU") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "要点整理", B: "次の一手", C: "共感だけ" },
+      ttl: 3,
+      meta: { source: "long_share" }
+    });
+    return;
+  }
+
+  if (kind === "DEV_TRIAGE_MENU") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "症状", B: "ログ", C: "再現手順" },
+      ttl: 3,
+      meta: { source: "dev_triage", topicId: "dev" }
+    });
+    return;
+  }
+
+  if (kind === "URL_CLARIFY") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "やりたいこと", B: "対象ページ", C: "エラー有無" },
+      ttl: 3,
+      meta: { source: "url_clarify" }
+    });
+    return;
+  }
+
+  if (kind === "LIST_SUMMARY_MENU") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "優先度付け", B: "要点1行", C: "次の一手" },
+      ttl: 3,
+      meta: { source: "list_summary" }
+    });
+    return;
+  }
+
+  if (kind === "TASK_SUMMARY") {
+    setExpect(state, {
+      type: "choice",
+      options: { A: "次の一手", B: "手順化", C: "指示文化" },
+      ttl: 3,
+      meta: { source: "task_summary", allowInTask: true }
+    });
+    return;
+  }
+
+  if (kind === "YESNO_NUDGE") {
+    setExpect(state, { type: "yesno", ttl: 2, meta: { source: "yesno_nudge" } });
+    return;
+  }
+
+  if (["CLARIFY", "CLARIFY_ONE"].includes(kind)) {
+    setExpect(state, { type: "freeText", ttl: 2, meta: { source: "clarify" } });
+    return;
+  }
+
+  if (["CONFUSED", "REPAIR_REPHRASE", "REPAIR_SUMMARY"].includes(kind)) {
+    setExpect(state, { type: "clarify", ttl: 2, meta: { source: "repair" } });
+    return;
+  }
+}
+
 export function step(userText, ctx = {}, prevState = null){
   const base = prevState ? clone(prevState) : initState();
   applyContextMessages(base, ctx.messages);
+  decayExpect(base);
 
-  const parsed = parseUserText(userText);
+  let parsed = parseUserText(userText);
+  parsed = enhanceParsedWithExpect(parsed, base);
   parsed.topic = detectTopic(parsed.clean);
+  if (shouldForceDevTopic(parsed.inputType)) {
+    parsed.topic = { id: "dev", label: "開発" };
+  }
 
   base.memory.lastUser = parsed.clean;
 
@@ -99,6 +215,12 @@ export function step(userText, ctx = {}, prevState = null){
   if (parsed.intent === "task_request") base.mode = "task";
   if (parsed.intent === "return_work") base.mode = "task"; // 戻る=作業側へ寄せる
   if (parsed.intent === "smalltalk") base.mode = "chat";   // 明示雑談
+
+  // 明確な文脈転換時は expect を解除
+  if (["task_request", "return_work"].includes(parsed.intent)) clearExpect(base);
+  if (parsed.intent === "share" && parsed.lenBucket === "long") clearExpect(base);
+  if (base.expect && shouldForceDevTopic(parsed.inputType) && !["choice", "ack"].includes(parsed.intent)) clearExpect(base);
+  if (base.mode === "task" && base.expect && !base.expect.meta?.allowInTask) clearExpect(base);
 
   // topic update
   if (parsed.topic) base.topic.current = { ...parsed.topic, updatedAt: Date.now() };
@@ -127,6 +249,8 @@ export function step(userText, ctx = {}, prevState = null){
 
   // act が『作業に戻る』を確定したら mode も切り替える（choice A など）
   if (act.kind === "EXIT_ACK") base.mode = "task";
+
+  updateExpectFromAct(base, act);
 
   if (act.kind === "EXIT_CHECK") base.chat.exitOfferedTurn = base.turn;
 
@@ -167,10 +291,12 @@ export function step(userText, ctx = {}, prevState = null){
     act: act.kind,
     mode: base.mode,
     topic: parsed.topic,
+    inputType: parsed.inputType,
     mood: base.mood,
     questionStreak: base.chat.questionStreak,
     shortStreak: base.chat.shortStreak,
-    smalltalkTurns: base.chat.smalltalkTurns
+    smalltalkTurns: base.chat.smalltalkTurns,
+    expect: base.expect ? { ...base.expect } : null
   };
 
   return { text, state: sanitizeState(base), meta };

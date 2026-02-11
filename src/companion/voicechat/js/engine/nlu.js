@@ -15,9 +15,14 @@ const YES_RE = /^(はい|うん|うい|ok|okay|おけ|おっけ|了解|りょ|�
 const NO_RE = /^(いいえ|いや|やだ|無理|むり|no|n)$/i;
 const LAUGH_RE = /^(w+|ｗ+|www+|草+|笑+|😂+|🤣+)+$/i;
 // 「？」単体や「え？」系は “困惑/確認” とみなす
-const CONFUSED_RE = /^(え|えっ|は\?+|は？+|ん\?+|ん？+|なに|何|まじ|マジ)$/u;
+const CONFUSED_RE = /^(え|えっ|は\?+|は？+|ん\?+|ん？+|なに|何|まじ|マジ|わからん|わからない)$/u;
 const QONLY_RE = /^[?？]+$/;
 const PUNCT_ONLY_RE = /^[!！?？。．…〜～、,\.\s]+$/;
+
+const LOG_HINT_RE = /(error|exception|trace|stack|npm\s+err|vite|build|deploy|at\s+.+:\d+:\d+|referenceerror|typeerror|syntaxerror)/i;
+const CODE_HINT_RE = /(```|(^|\n)\s*(import|export|function|const|let|var|class)\b|[{};]{2,})/i;
+const URL_RE = /https?:\/\/\S+/i;
+const LIST_LINE_RE = /^\s*[-*・]\s+.+/;
 
 const SMALLTALK_REQUEST_RE = /(雑談しよ|雑談しよう|雑談する|話そ|おしゃべり|ひま|暇|退屈|相手して)/;
 const RETURN_WORK_RE = /(作業戻|戻る|仕事戻|作業する|やるか|続きやる)/;
@@ -113,7 +118,23 @@ function extractChoice(tail) {
   return null;
 }
 
+function detectInputType(rawText) {
+  const raw = String(rawText || "");
+  const clean = raw.trim();
+  if (!clean) return "text";
+
+  const lines = raw.split(/\r?\n/);
+  const listCount = lines.filter((line) => LIST_LINE_RE.test(line)).length;
+
+  if (LOG_HINT_RE.test(raw) && (lines.length >= 2 || /error|exception|stack|npm\s+err/i.test(raw))) return "log";
+  if (CODE_HINT_RE.test(raw)) return "code";
+  if (URL_RE.test(raw)) return "url";
+  if (listCount >= 2) return "list";
+  return "text";
+}
+
 export function parseUserText(text) {
+  const inputType = detectInputType(text);
   const clean = normalizeInput(text);
   const tail = stripTailPunct(clean);
   const lower = tail.toLowerCase();
@@ -134,7 +155,7 @@ export function parseUserText(text) {
   const isShortAck = SHORT_ACK_RE.test(lower);
   const yesNo = YES_RE.test(lower) ? "yes" : (NO_RE.test(lower) ? "no" : "");
   const isQuestion = QUESTION_HINT_RE.test(clean);
-  const isTaskRequest = TASK_REQUEST_RE.test(clean);
+  const isTaskRequest = inputType === "text" && TASK_REQUEST_RE.test(clean);
 
   const isShare = (!isQuestion && !isShortAck && !choice && !isLaugh && !isConfused && SHARE_HINT_RE.test(clean) && clean.length >= 4);
 
@@ -171,10 +192,44 @@ export function parseUserText(text) {
     tail,
     intent,
     mood,
+    inputType,
     lenBucket,
     keyword,
     slotsHint,
     choice,
     yesNo
   };
+}
+
+export function enhanceParsedWithExpect(parsed, state) {
+  const p = { ...(parsed || {}) };
+  p.choice = p.choice ? { ...p.choice } : null;
+
+  const exp = state?.expect;
+  if (!exp || typeof exp !== "object") return p;
+
+  if (exp.type === "choice") {
+    if (!p.choice) {
+      const t = String(p.tail || p.clean || "").trim();
+      if (/^(それ|そっち|こっち)$/.test(t) || p.intent === "ack") {
+        p.choice = { key: "DEIXIS", idx: null, raw: t || p.clean || "" };
+        p.intent = "choice";
+        p.keyword = "";
+      }
+    }
+  }
+
+  if (exp.type === "yesno") {
+    if (!p.yesNo && p.intent === "ack") p.yesNo = "yes";
+    if (p.yesNo) {
+      p.intent = "ack";
+      p.keyword = "";
+    }
+  }
+
+  if (exp.type === "freeText" || exp.type === "clarify") {
+    if (p.intent === "empty") p.intent = "confused";
+  }
+
+  return p;
 }
