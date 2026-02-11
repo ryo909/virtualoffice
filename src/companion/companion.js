@@ -1,4 +1,5 @@
 import { DialogueSystem } from './voicechat/js/dialogue.js';
+import { STORAGE_KEY as DIALOGUE_STATE_KEY } from './voicechat/js/engine/state.js';
 import {
     loadUnread,
     saveUnread,
@@ -489,6 +490,44 @@ function resetSettings() {
     return { ...DEFAULT_SETTINGS };
 }
 
+function resetChatHistory() {
+    if (isTyping()) {
+        window.alert('返信中なので、終わってからリセットしてね');
+        return false;
+    }
+
+    const ok = window.confirm('AIチャットの履歴をリセットしますか？（この端末のローカル履歴が削除されます）');
+    if (!ok) return false;
+
+    try {
+        localStorage.removeItem(CHAT_LS_KEY);
+        localStorage.removeItem(RECENT_BOT_REPLIES_KEY);
+        localStorage.removeItem(GREETED_FLAG_KEY);
+        localStorage.removeItem(DIALOGUE_STATE_KEY);
+    } catch {
+        // non-fatal
+    }
+
+    dialogue = null;
+    try {
+        window.speechSynthesis?.cancel?.();
+    } catch {
+        // non-fatal
+    }
+
+    state.messages = saveChatLog([]);
+    state.recentBotReplies = saveRecentBotReplies([]);
+    state.unread = 0;
+    saveUnread(0);
+
+    renderHistory();
+    syncUnreadUI();
+    syncTypingUI();
+
+    window.alert('履歴をリセットしました');
+    return true;
+}
+
 function resolveMascotSrc(settings) {
     const v = settings?.mascotDataUrl || '';
     const url = (typeof v === 'string' && v.startsWith('data:image/')) ? v : DEFAULT_MASCOT_URL;
@@ -812,10 +851,11 @@ function renderRoot(open) {
                                 <span style="font-size:12px;">高さ <span id="setting-tts-pitch-value">1</span></span>
                                 <input id="setting-tts-pitch" type="range" min="0" max="2.0" step="0.01" />
                             </label>
-                            <div style="display:flex;gap:8px;">
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <button id="setting-tts-test" type="button">テスト読み上げ</button>
                                 <button id="btn-proactive-now" type="button">今すぐ話しかける</button>
                                 <button id="setting-reset" type="button">リセット</button>
+                                <button id="chat-history-reset" type="button">チャット履歴リセット</button>
                             </div>
                         </div>
                     </div>
@@ -1583,6 +1623,10 @@ function bindEvents() {
         state.settings = loadSettings();
         syncIdentityUI();
         renderRoot(isPanelOpen());
+    });
+
+    on(document.getElementById('chat-history-reset'), 'click', () => {
+        resetChatHistory();
     });
 
     on(root, 'keydown', (event) => {
