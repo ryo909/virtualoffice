@@ -25,6 +25,7 @@ export function initState(now = Date.now()) {
     mood: "neutral", // neutral | tired | happy | busy
     chat: {
       questionStreak: 0,
+      shortStreak: 0,
       smalltalkTurns: 0,
       exitOfferedTurn: -999
     },
@@ -77,6 +78,7 @@ export function sanitizeState(obj) {
     mood: (["neutral","tired","happy","busy"].includes(s.mood)) ? s.mood : "neutral",
     chat: {
       questionStreak: Number(s.chat?.questionStreak) || 0,
+      shortStreak: Number(s.chat?.shortStreak) || 0,
       smalltalkTurns: Number(s.chat?.smalltalkTurns) || 0,
       exitOfferedTurn: Number(s.chat?.exitOfferedTurn) || -999
     },

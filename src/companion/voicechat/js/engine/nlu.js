@@ -10,7 +10,14 @@ const TIRED_RE = /(疲|つかれ|しんど|だる|眠|つら|無理|きつ)/;
 const HAPPY_RE = /(うれし|嬉|やった|最高|できた|達成)/;
 const BUSY_RE = /(忙|いそが|やばい|締切|間に合|詰ん)/;
 
-const SHORT_ACK_RE = /^(はい|うん|ok|okay|了解|りょ|なるほど|そう|それな|たしかに)$/i;
+const SHORT_ACK_RE = /^(はい|うん|うい|ok|okay|おけ|おっけ|了解|りょ|りょか|ふむ|なるほど|そう|そっか|それな|たしかに|わかる|わかった)$/i;
+const YES_RE = /^(はい|うん|うい|ok|okay|おけ|おっけ|了解|りょ|りょか|yes|y)$/i;
+const NO_RE = /^(いいえ|いや|やだ|無理|むり|no|n)$/i;
+const LAUGH_RE = /^(w+|ｗ+|www+|草+|笑+|😂+|🤣+)+$/i;
+// 「？」単体や「え？」系は “困惑/確認” とみなす
+const CONFUSED_RE = /^(え|えっ|は\?+|は？+|ん\?+|ん？+|なに|何|まじ|マジ)$/u;
+const QONLY_RE = /^[?？]+$/;
+const PUNCT_ONLY_RE = /^[!！?？。．…〜～、,\.\s]+$/;
 
 const SMALLTALK_REQUEST_RE = /(雑談しよ|雑談しよう|雑談する|話そ|おしゃべり|ひま|暇|退屈|相手して)/;
 const RETURN_WORK_RE = /(作業戻|戻る|仕事戻|作業する|やるか|続きやる)/;
@@ -77,30 +84,71 @@ function extractSlotCandidates(clean) {
   return { taskName, audience, deadline, format, tone };
 }
 
+function extractChoice(tail) {
+  const s = String(tail || "").trim();
+  if (!s) return null;
+
+  // A/B/C (Aで, Bかな なども許容)
+  const mABC = s.match(/^([abc])(?:で|かな|がいい|にする)?$/i);
+  if (mABC) {
+    const key = mABC[1].toUpperCase();
+    return { key, idx: ["A", "B", "C"].indexOf(key), raw: s };
+  }
+
+  // 1/2/3
+  const mNum = s.match(/^([123])(?:で|かな|がいい|にする)?$/);
+  if (mNum) {
+    const idx = Number(mNum[1]) - 1;
+    return { key: ["A", "B", "C"][idx], idx, raw: s };
+  }
+
+  // 位置指定（上/真ん中/下）
+  if (/^(上|うえ)$/.test(s)) return { key: "A", idx: 0, raw: s };
+  if (/^(真ん中|まんなか|中|なか)$/.test(s)) return { key: "B", idx: 1, raw: s };
+  if (/^(下|した)$/.test(s)) return { key: "C", idx: 2, raw: s };
+
+  // 指示語（メニュー文脈があるときだけ確定させる）
+  if (/^(それ|そっち|こっち)$/.test(s)) return { key: "DEIXIS", idx: null, raw: s };
+
+  return null;
+}
+
 export function parseUserText(text) {
   const clean = normalizeInput(text);
   const tail = stripTailPunct(clean);
   const lower = tail.toLowerCase();
+
+  const isQOnly = (!!clean && QONLY_RE.test(clean));
+  const isPunctOnly = (!!clean && !tail && PUNCT_ONLY_RE.test(clean) && !isQOnly);
+  const choice = extractChoice(tail);
 
   const isGreeting = GREET_RE.test(lower);
   const isThanks = THANKS_RE.test(clean);
   const isTired = TIRED_RE.test(clean);
   const isSmalltalk = SMALLTALK_REQUEST_RE.test(clean);
   const isReturnWork = RETURN_WORK_RE.test(clean);
+
+  const isLaugh = LAUGH_RE.test(lower);
+  const isConfused = isQOnly || CONFUSED_RE.test(tail);
+
   const isShortAck = SHORT_ACK_RE.test(lower);
+  const yesNo = YES_RE.test(lower) ? "yes" : (NO_RE.test(lower) ? "no" : "");
   const isQuestion = QUESTION_HINT_RE.test(clean);
   const isTaskRequest = TASK_REQUEST_RE.test(clean);
 
-  const isShare = (!isQuestion && !isShortAck && SHARE_HINT_RE.test(clean) && clean.length >= 4);
+  const isShare = (!isQuestion && !isShortAck && !choice && !isLaugh && !isConfused && SHARE_HINT_RE.test(clean) && clean.length >= 4);
 
   let intent = "other";
-  if (!clean) intent = "empty";
+  if (!clean || isPunctOnly) intent = "empty";
   else if (isThanks) intent = "thanks";
   else if (isGreeting) intent = "greet";
   else if (isReturnWork) intent = "return_work";
   else if (isTired) intent = "tired";
   else if (isSmalltalk) intent = "smalltalk";
   else if (isTaskRequest) intent = "task_request";
+  else if (choice) intent = "choice";
+  else if (isLaugh) intent = "laugh";
+  else if (isConfused) intent = "confused";
   else if (isShare) intent = "share";
   else if (isQuestion) intent = "question";
   else if (isShortAck) intent = "ack";
@@ -112,7 +160,8 @@ export function parseUserText(text) {
 
   const len = clean.length;
   const lenBucket = (len <= 6) ? "short" : (len >= 60 ? "long" : "mid");
-  const keyword = extractKeyword(clean);
+  // 短文ノイズ（相槌/選択/笑/困惑/空白）は keyword を空にして暴走を防ぐ
+  const keyword = (["ack", "choice", "laugh", "confused", "empty"].includes(intent)) ? "" : extractKeyword(clean);
 
   const slotsHint = extractSlotCandidates(clean);
 
@@ -124,6 +173,8 @@ export function parseUserText(text) {
     mood,
     lenBucket,
     keyword,
-    slotsHint
+    slotsHint,
+    choice,
+    yesNo
   };
 }

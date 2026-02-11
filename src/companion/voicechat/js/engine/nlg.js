@@ -19,6 +19,34 @@ function rhythmize(text){
   return s.trim();
 }
 
+function hasABCMenu(text) {
+  const s = String(text || "");
+  return s.includes("\nA)") && s.includes("B)") && s.includes("C)");
+}
+
+function extractABCMenu(text) {
+  const s = String(text || "");
+  if (!hasABCMenu(s)) return null;
+
+  const posA = s.indexOf("A)");
+  const posB = s.indexOf("B)");
+  const posC = s.indexOf("C)");
+  const end = s.length;
+
+  const cut = (from, to) => {
+    if (from < 0) return "";
+    const start = from + 2;
+    const stop = (to > start) ? to : end;
+    return s.slice(start, stop).replace(/\s+/g, " ").trim().slice(0, 40);
+  };
+
+  const A = cut(posA, posB >= 0 ? posB : (posC >= 0 ? posC : end));
+  const B = cut(posB, posC >= 0 ? posC : end);
+  const C = cut(posC, end);
+  if (!A && !B && !C) return null;
+  return { A, B, C };
+}
+
 function slotQuestion(slot) {
   switch (slot) {
     case "taskName":
@@ -39,6 +67,88 @@ function slotQuestion(slot) {
 export function renderCandidates(act, { state, parsed, effects }) {
   const prefix = String(effects?.memoryPrefix || "").trim();
   const p = prefix ? (prefix.endsWith("。") ? prefix : prefix + "。") : "";
+
+  // --- short / noisy inputs
+  if (act.kind === "EMPTY_NUDGE") return [
+    "ん〜？（一言だけでも大丈夫だよ〜）",
+    "おっ、呼んだ？（返事だけでもOK〜）",
+    "んん、いまは『うん』だけでも成立するよ〜"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "LAUGH") return [
+    "わかるw",
+    "草ぁ。なんかツボった？",
+    "それ、じわるやつ〜"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "CONFUSED") return [
+    "ん？どこが引っかかった〜？（一語でOK）",
+    "おけ、いったん整理するね。『何がわからん』だけ教えて〜",
+    "大丈夫大丈夫。『どこまで分かった』かだけ言って〜"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "CHOICE_NUDGE") {
+    const menu = extractABCMenu(state?.memory?.lastBot);
+    if (menu) {
+      const a = menu.A ? `A)${menu.A}` : "A)";
+      const b = menu.B ? `B)${menu.B}` : "B)";
+      const c = menu.C ? `C)${menu.C}` : "C)";
+      return [
+        `どれが近い?\n${a} ${b} ${c}\n（A/B/CだけでもOK）`,
+        `A/B/Cどれにする〜？（一文字でいいよ）\n${a} ${b} ${c}`
+      ].map((x) => rhythmize(p + x));
+    }
+    return [
+      "A/B/Cのどれが近い〜？（AだけでもOK）",
+      "どっち系？（A/B/Cの一文字でOK〜）"
+    ].map((x) => rhythmize(p + x));
+  }
+
+  if (act.kind === "CHOICE_ACK") {
+    const label = act.label ? `（${act.label}）` : "";
+    return [
+      `おっけー、${act.key}${label}ね〜。`,
+      `了解〜！${act.key}${label}でいこ〜。`,
+      `うんうん、${act.key}${label}に寄せよっか。`
+    ].map((x) => rhythmize(p + x));
+  }
+
+  if (act.kind === "LONG_SHARE_PICK") {
+    if (act.key === "A") return [
+      "おけ〜。じゃあ要点だけ整えよ。『結論1行』だけ言って〜。",
+      "要点整理いこ。いま一番大事なポイントってどれ？（一言でOK）"
+    ].map((x) => rhythmize(p + x));
+    if (act.key === "B") return [
+      "次の一手いこ〜。いま最優先は何？（1つだけ）",
+      "おっけ。じゃあ最短ルートで進めよ。次にやる作業名だけ教えて〜。"
+    ].map((x) => rhythmize(p + x));
+    return [
+      "いいよ〜。愚痴ってOK。いま何がいちばんモヤる？",
+      "うんうん、吐き出そ。どこで詰んだ感じ？"
+    ].map((x) => rhythmize(p + x));
+  }
+
+  if (act.kind === "ACK_TINY") return [
+    "うんうん。",
+    "おけ〜。",
+    "りょ〜。"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "ACK_YES") return [
+    "おっけー！じゃあその方向でいこ〜。",
+    "了解〜。そのまま進めよっか。"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "ACK_NO") return [
+    "了解〜。じゃあ別ルートにしよ。",
+    "おけ、違うのね。じゃあ他の案出す〜。"
+  ].map((x) => rhythmize(p + x));
+
+  if (act.kind === "ACK_PROGRESS") return [
+    "おっけ。続き、もうちょいだけ教えて〜。",
+    "うんうん。で、いま一番気になるのどこ？",
+    "了解〜。次どうする？"
+  ].map((x) => rhythmize(p + x));
 
   if (act.kind === "THANKS") return [
     "えへへ、どういたしまして〜。いつでも呼んでね。",
@@ -92,6 +202,13 @@ export function renderCandidates(act, { state, parsed, effects }) {
   ].map(x=>rhythmize(p + x));
 
   // task acts
+  if (act.kind === "TASK_START") {
+    return [
+      "おっけー、タスク整理いこ〜。まず何を進めたい？（一言でOK）",
+      "いいね。タスクモード入るよ〜。最初の作業名だけ教えて〜。"
+    ].map((x) => rhythmize(p + x));
+  }
+
   if (act.kind === "TASK_ASK_SLOT") {
     return [
       `${slotQuestion(act.slot)}`

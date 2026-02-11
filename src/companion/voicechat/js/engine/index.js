@@ -65,7 +65,7 @@ function tryFillPendingSlot(state, parsed){
   if (!pending?.slot) return;
 
   // 雑談/挨拶系は slot fill しない
-  if (["greet","thanks","smalltalk","return_work","empty"].includes(parsed.intent)) return;
+  if (["greet","thanks","smalltalk","return_work","empty","ack","choice","laugh","confused"].includes(parsed.intent)) return;
 
   const val = String(parsed.clean || "").trim();
   if (!val) return;
@@ -104,9 +104,13 @@ export function step(userText, ctx = {}, prevState = null){
   if (parsed.topic) base.topic.current = { ...parsed.topic, updatedAt: Date.now() };
 
   // smalltalk counter
-  const countsAsSmalltalk = ["share","other","ack","question","smalltalk"].includes(parsed.intent);
+  const countsAsSmalltalk = ["share","other","ack","question","smalltalk","choice","laugh","confused"].includes(parsed.intent);
   if (base.mode === "chat" && countsAsSmalltalk) base.chat.smalltalkTurns += 1;
   if (base.mode === "task") base.chat.smalltalkTurns = 0;
+
+  // short streak: 短文が続く時は返答圧を下げる
+  const shortish = (parsed.lenBucket === "short") && ["ack","choice","laugh","confused","other","empty"].includes(parsed.intent);
+  base.chat.shortStreak = shortish ? (Number(base.chat.shortStreak) || 0) + 1 : 0;
 
   // slot hints apply（task modeのみ）
   if (base.mode === "task") applySlotHints(base, parsed.slotsHint);
@@ -120,6 +124,9 @@ export function step(userText, ctx = {}, prevState = null){
 
   // act decide
   const act = decideAct({ state: base, parsed });
+
+  // act が『作業に戻る』を確定したら mode も切り替える（choice A など）
+  if (act.kind === "EXIT_ACK") base.mode = "task";
 
   if (act.kind === "EXIT_CHECK") base.chat.exitOfferedTurn = base.turn;
 
@@ -162,6 +169,7 @@ export function step(userText, ctx = {}, prevState = null){
     topic: parsed.topic,
     mood: base.mood,
     questionStreak: base.chat.questionStreak,
+    shortStreak: base.chat.shortStreak,
     smalltalkTurns: base.chat.smalltalkTurns
   };
 
